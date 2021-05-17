@@ -38,10 +38,9 @@ message(STATUS "Git hash " ${GITHASH})
 add_definitions(-DGITHASH="${GITHASH}")
 
 # double precision version
-if(USECUDA)
-  cuda_add_executable(microhh microhh.cxx)
-  target_link_libraries(microhh microhhc rrtmgp rrtmgp_kernels ${LIBS} m)
+if(USECUDA_LEGACY)
+	cuda_add_executable(microhh microhh.cxx)
 else()
   add_executable(microhh microhh.cxx)
-  target_link_libraries(microhh microhhc rrtmgp rrtmgp_kernels ${LIBS} m)
 endif()
+target_link_libraries(microhh microhhc rrtmgp rrtmgp_kernels ${LIBS} m)
