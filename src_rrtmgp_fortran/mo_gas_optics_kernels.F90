@@ -721,14 +721,12 @@ contains
     integer  :: icol, ilay, igpt
     real(wp) :: t
     ! -----------------------
-
-    g(:,:,:) = 0._wp
-
-    do ilay = 1, nlay
-      do igpt = 1, ngpt
-        do icol = 1, ncol
+    do icol = 1, ncol
+      do ilay = 1, nlay
+        do igpt = 1, ngpt
            t = tau_abs(igpt,ilay,icol) + tau_rayleigh(igpt,ilay,icol)
            tau(icol,ilay,igpt) = t
+           g  (icol,ilay,igpt) = 0._wp
            if(t > 2._wp * tiny(t)) then
              ssa(icol,ilay,igpt) = tau_rayleigh(igpt,ilay,icol) / t
            else
