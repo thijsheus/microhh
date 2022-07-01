@@ -382,7 +382,7 @@ void Radiation_gcss<TF>::exec(Thermo<TF>& thermo, const double time, Timeloop<TF
 #endif
 
 template<typename TF>
-bool Radiation_gcss<TF>::check_field_exists(const std::string name)
+bool Radiation_gcss<TF>::check_field_exists(const std::string& name)
 {
     if (name == "rflx" || name == "sflx")
         return true;
@@ -391,7 +391,7 @@ bool Radiation_gcss<TF>::check_field_exists(const std::string name)
 }
 
 template<typename TF>
-void Radiation_gcss<TF>::get_radiation_field(Field3d<TF>& fld, std::string name, Thermo<TF>& thermo, Timeloop<TF>& timeloop)
+void Radiation_gcss<TF>::get_radiation_field(Field3d<TF>& fld, const std::string& name, Thermo<TF>& thermo, Timeloop<TF>& timeloop)
 {
     if (name == "lflx")
     {
@@ -515,13 +515,14 @@ void Radiation_gcss<TF>::exec_column(Column<TF>& column, Thermo<TF>& thermo, Tim
 
 template<typename TF>
 void Radiation_gcss<TF>::exec_all_stats(
-        Stats<TF>& stats, Cross<TF>& cross, Dump<TF>& dump,
+        Stats<TF>& stats, Cross<TF>& cross, Dump<TF>& dump, Column<TF>& column,
         Thermo<TF>& thermo, Timeloop<TF>& timeloop,
         const unsigned long itime, const int iotime)
 {
+    const unsigned long idt = timeloop.get_idt();
     const bool do_stats = stats.do_statistics(itime);
     const bool do_cross = cross.do_cross(itime);
-    const bool do_dump = dump.do_dump(itime);
+    const bool do_dump = dump.do_dump(itime, idt);
 
     // Return in case of no stats or cross section.
     if ( !(do_stats || do_cross || do_dump) )
@@ -577,5 +578,8 @@ void Radiation_gcss<TF>::exec_all_stats(
     }
 }
 
-template class Radiation_gcss<double>;
+#ifdef FLOAT_SINGLE
 template class Radiation_gcss<float>;
+#else
+template class Radiation_gcss<double>;
+#endif

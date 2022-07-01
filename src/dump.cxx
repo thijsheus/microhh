@@ -40,6 +40,8 @@ Dump<TF>::Dump(Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input& 
 
     if (swdump)
     {
+        swdoubledump = inputin.get_item<bool>("dump", "swdoubledump", "", false);
+
         // Get the time at which the dump sections are triggered.
         sampletime = inputin.get_item<double>("dump", "sampletime", "");
 
@@ -67,8 +69,6 @@ void Dump<TF>::init(double ifactor)
         return;
 
     isampletime = static_cast<unsigned long>(ifactor * sampletime);
-
-    field3d_io.init();
 }
 
 template<typename TF>
@@ -93,15 +93,17 @@ unsigned long Dump<TF>::get_time_limit(unsigned long itime)
 }
 
 template<typename TF>
-bool Dump<TF>::do_dump(unsigned long itime)
+bool Dump<TF>::do_dump(unsigned long itime, unsigned long idt)
 {
     // Check if dump is enabled.
     if (!swdump)
         return false;
-
     // Check if current time step is dump time.
     if (itime % isampletime != 0)
-        return false;
+        if (((itime + idt) % isampletime ==0) && swdoubledump)
+            return true;
+        else
+            return false;
 
     // Return true such that column are computed
     return true;
@@ -116,6 +118,7 @@ std::vector<std::string>& Dump<TF>::get_dumplist()
 template<typename TF>
 void Dump<TF>::save_dump(TF* data, const std::string& varname, int iotime)
 {
+    auto& gd = grid.get_grid_data();
     const double no_offset = 0.;
     char filename[256];
 
@@ -128,19 +131,18 @@ void Dump<TF>::save_dump(TF* data, const std::string& varname, int iotime)
     }
     else
     {
-        master.print_message("Saving \"%s\" ... ", filename);
 
         auto tmp1 = fields.get_tmp();
         auto tmp2 = fields.get_tmp();
 
-        if (field3d_io.save_field3d(data, tmp1->fld.data(), tmp2->fld.data(), filename, no_offset))
+        if (field3d_io.save_field3d(
+                    data,
+                    tmp1->fld.data(), tmp2->fld.data(),
+                    filename, no_offset,
+                    gd.kstart, gd.kend))
         {
-            master.print_message("FAILED\n");
+            master.print_message("Saving \"%s\" ... FAILED\n", filename);
             throw std::runtime_error("Writing error in dump");
-        }
-        else
-        {
-            master.print_message("OK\n");
         }
 
         fields.release_tmp(tmp1);
