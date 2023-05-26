@@ -355,7 +355,7 @@ class Create_ncfile():
                 key, precision, (key))
             self.dimvar[key].units = units[key]
             if key != 'time':
-                self.dimvar[key][:] = grid.dim[key][value[1]]
+                self.dimvar[key][:] = grid.dim[key][value]
 
         self.var = self.ncfile.createVariable(
             varname, precision, tuple(

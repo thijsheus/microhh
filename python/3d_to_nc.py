@@ -72,8 +72,8 @@ def convert_to_nc(variables):
             tout = 0
             for t in range(niter):
                 otime = round((starttime + t * sampletime) / 10**iotimeprec)
-                timedata = struct.unpack("=QQi",open('time.{0:07d}'.format(otime), 'rb').read())
                 if (doubledump and t>0):
+                    timedata = struct.unpack("=QQi",open('time.{0:07d}'.format(otime), 'rb').read())
                     otime2 = round((timedata[0]-timedata[1]) *10**(-iotimeprec-9)-0.5)
                     convert(otime2, tout)
                     tout += 1
@@ -182,10 +182,10 @@ if kmax < ktot:
 
 units = {}
 units['time'] = "seconds since "
-if (nl['time']['datetime_utc'] is None):
-    units['time'] = units['time'] + '2000-1-1 0:0:0'
-else:
+if ('datetime_utc' in nl['time']):
     units['time'] = units['time'] + nl['time']['datetime_utc']
+else:
+    units['time'] = units['time'] + '2000-1-1 0:0:0'
     
 for key in grid.dim.keys():
     units[key] = 'm'
