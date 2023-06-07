@@ -1,0 +1,8 @@
+executable = run.sh
+request_GPUs = 1
+request_CPUs = 16
+log = run.log
+output = run.stdout
+error = run.stderr
+
+queue
