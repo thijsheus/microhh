@@ -1,2 +1,0 @@
-/usr/bin/ar qc librte_rrtmgp_kernels_cuda.a CMakeFiles/rte_rrtmgp_kernels_cuda.dir/gas_optics_kernel_launchers.cu.o CMakeFiles/rte_rrtmgp_kernels_cuda.dir/optical_props_kernel_launchers.cu.o CMakeFiles/rte_rrtmgp_kernels_cuda.dir/rte_solver_kernel_launchers.cu.o CMakeFiles/rte_rrtmgp_kernels_cuda.dir/subset_kernel_launchers.cu.o
-/usr/bin/ranlib librte_rrtmgp_kernels_cuda.a

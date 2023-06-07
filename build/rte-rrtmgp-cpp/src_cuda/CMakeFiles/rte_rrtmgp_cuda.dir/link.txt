@@ -1,2 +1,0 @@
-/usr/bin/ar qc librte_rrtmgp_cuda.a CMakeFiles/rte_rrtmgp_cuda.dir/Cloud_optics.cu.o CMakeFiles/rte_rrtmgp_cuda.dir/Fluxes.cu.o CMakeFiles/rte_rrtmgp_cuda.dir/Gas_concs.cu.o CMakeFiles/rte_rrtmgp_cuda.dir/Gas_optics_rrtmgp.cu.o CMakeFiles/rte_rrtmgp_cuda.dir/Mem_pool_gpu.cu.o CMakeFiles/rte_rrtmgp_cuda.dir/Optical_props.cu.o CMakeFiles/rte_rrtmgp_cuda.dir/Rte_lw.cu.o CMakeFiles/rte_rrtmgp_cuda.dir/Rte_sw.cu.o CMakeFiles/rte_rrtmgp_cuda.dir/Source_functions.cu.o
-/usr/bin/ranlib librte_rrtmgp_cuda.a
