@@ -99,6 +99,8 @@ class Radiation_gcss : public Radiation<TF>
         bool swcross_rflx;
         std::vector<std::string> dumplist;         ///< List with all 3d dumps from the ini file.
 
+        TF lat;
+        TF lon;
         TF xka;
         TF fr0;
         TF fr1;
