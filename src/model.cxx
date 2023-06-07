@@ -240,6 +240,9 @@ void Model<TF>::load()
     fields->create_stats(*stats);
     fields->create_column(*column);
 
+    thermo->create(*input, *input_nc, *stats, *column, *cross, *dump, *timeloop);
+    thermo->load(timeloop->get_iotime());
+
     boundary->load(timeloop->get_iotime(), *thermo);
     boundary->create(*input, *input_nc, *stats, *column, *cross, *timeloop);
     boundary->set_values();
@@ -248,9 +251,6 @@ void Model<TF>::load()
     buffer->create(*input, *input_nc, *stats);
     force->create(*input, *input_nc, *stats);
     source->create(*input, *input_nc);
-
-    thermo->create(*input, *input_nc, *stats, *column, *cross, *dump);
-    thermo->load(timeloop->get_iotime());
 
     microphys->create(*input, *input_nc, *stats, *cross, *dump, *column);
 
@@ -580,6 +580,8 @@ void Model<TF>::clear_gpu()
     soil_grid->clear_device();
     fields   ->clear_device();
     thermo   ->clear_device();
+    boundary ->clear_device();
+    diff     ->clear_device();
     force    ->clear_device();
     ib       ->clear_device();
     microphys->clear_device();

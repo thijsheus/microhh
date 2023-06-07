@@ -321,13 +321,13 @@ Force<TF>::Force(Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input
     std::string swls_in     = inputin.get_item<std::string>("force", "swls"    , "", "0");
 
     if (swwls_in == "1" || swwls_in == "mean" || swwls_in == "local")
-        bool swwls_mom = inputin.get_item<bool>("force", "swwls_mom", "", false);
+        swwls_mom = inputin.get_item<bool>("force", "swwls_mom", "", false);
 
     // Checks on input:
     if (swwls_in == "1")
     {
-        master.print_warning("\"swwls=1\" has been replaced by \"swwls=mean\" or \"swwls=local\". Defaulting to \"swwls=mean\"\n");
-        swwls_in = "mean";
+        master.print_warning("\"swwls=1\" has been replaced by \"swwls=mean\" or \"swwls=local\". Defaulting to \"swwls=local\"\n");
+        swwls_in = "local";
     }
 
     // Set the internal switches and read other required input
@@ -391,10 +391,6 @@ Force<TF>::Force(Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input
     {
         swwls = Large_scale_subsidence_type::Local_field;
         fields.set_calc_mean_profs(true);
-
-        #ifdef USECUDA
-        throw std::runtime_error("Local field subsidence not yet included for GPU");
-        #endif
     }
     else
     {

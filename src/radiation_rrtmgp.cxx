@@ -466,12 +466,12 @@ namespace
             Float* const restrict sw_flux_up_sfc,
             Float* const restrict sw_flux_dn_dif,
             Float* const restrict tmp_2d,
-            const double* const restrict sw_flux_dn,
-            const double* const restrict sw_flux_dn_dir,
+            const Float* const restrict sw_flux_dn,
+            const Float* const restrict sw_flux_dn_dir,
             const Float* const restrict kernel_x,
             const Float* const restrict kernel_y,
             const int n_steps,
-            const double alb_dir, const double alb_dif,
+            const Float alb_dir, const Float alb_dif,
             const int istart, const int iend,
             const int jstart, const int jend,
             const int igc, const int jgc,
@@ -601,12 +601,7 @@ Radiation_rrtmgp<TF>::Radiation_rrtmgp(
         const Float sza = inputin.get_item<Float>("radiation", "sza", "");
         mu0 = std::cos(sza);
     }
-    else
-    {
-        lat = inputin.get_item<Float>("radiation", "lat", "");
-        lon = inputin.get_item<Float>("radiation", "lon", "");
-    }
-
+    
     // Surface diffuse radiation filtering
     sw_diffuse_filter = inputin.get_item<bool>("radiation", "swfilterdiffuse", "", false);
     if (sw_diffuse_filter)
@@ -1305,11 +1300,12 @@ void Radiation_rrtmgp<TF>::create_solver_shortwave(
 template<typename TF>
 void Radiation_rrtmgp<TF>::set_sun_location(Timeloop<TF>& timeloop)
 {
+
     // Update the solar zenith angle.
     const int day_of_year = int(timeloop.calc_day_of_year());
     const int year = timeloop.get_year();
     const TF seconds_after_midnight = TF(timeloop.calc_hour_of_day()*3600);
-    this->mu0 = calc_cos_zenith_angle(lat, lon, day_of_year, seconds_after_midnight, year);
+    this->mu0 = calc_cos_zenith_angle(grid.lat, grid.lon, day_of_year, seconds_after_midnight, year);
 
     // Calculate correction factor for impact Sun's distance on the solar "constant"
     const TF frac_day_of_year = TF(day_of_year) + seconds_after_midnight / TF(86400);

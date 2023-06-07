@@ -1,7 +1,7 @@
 import netCDF4 as nc4
 import xarray as xr
 import numpy as np
-import os
+import os, shutil
 
 # Available in `microhh_root/python`:
 import microhh_tools as mht
@@ -29,40 +29,49 @@ def link(f1, f2):
         raise Exception('Source file {} does not exist!'.format(f1))
 
 
-if __name__ == '__main__':
+def copy(f1, f2):
     """
-    Case switches.
+    Copy `f1` to `f2`, if `f2` does not yet exist.
     """
-    TF = np.float64              # Switch between double (float64) and single (float32) precision.
-    use_htessel = True           # False = prescribed surface H+LE fluxes from ERA5.
-    use_rrtmgp = True            # False = prescribed radiation from ERA5.
-    use_rt = False               # False = 2stream solver for shortwave down, True = raytracer.
-    use_homogeneous_z0 = True    # False = checkerboard pattern roughness lengths.
-    use_homogeneous_ls = True    # False = checkerboard pattern (some...) land-surface fields.
+    if os.path.exists(f2):
+        os.remove(f2)
+    if os.path.exists(f1):
+        shutil.copy(f1, f2)
+    else:
+        raise Exception('Source file {} does not exist!'.format(f1))
 
-    gpt_set = '128_112' # or '256_224'
+copy_or_link = copy
+
+def create_case_input(
+        use_htessel,
+        use_rrtmgp,
+        use_rt,
+        use_homogeneous_z0,
+        use_homogeneous_ls,
+        gpt_set,
+        itot, jtot, ktot,
+        xsize, ysize, zsize,
+        endtime, TF):
 
     # Link required files (if not present)
     if use_htessel:
-        link('../../misc/van_genuchten_parameters.nc', 'van_genuchten_parameters.nc')
+        copy_or_link('../../misc/van_genuchten_parameters.nc', 'van_genuchten_parameters.nc')
     if use_rrtmgp:
         if gpt_set == '256_224':
-            link('../../rte-rrtmgp-cpp/rte-rrtmgp/rrtmgp/data/rrtmgp-data-lw-g256-2018-12-04.nc', 'coefficients_lw.nc')
-            link('../../rte-rrtmgp-cpp/rte-rrtmgp/rrtmgp/data/rrtmgp-data-sw-g224-2018-12-04.nc', 'coefficients_sw.nc')
+            copy_or_link('../../rte-rrtmgp-cpp/rte-rrtmgp/rrtmgp/data/rrtmgp-data-lw-g256-2018-12-04.nc', 'coefficients_lw.nc')
+            copy_or_link('../../rte-rrtmgp-cpp/rte-rrtmgp/rrtmgp/data/rrtmgp-data-sw-g224-2018-12-04.nc', 'coefficients_sw.nc')
         elif gpt_set == '128_112':
-            link('../../rte-rrtmgp-cpp/rte-rrtmgp/rrtmgp/data/rrtmgp-data-lw-g128-210809.nc', 'coefficients_lw.nc')
-            link('../../rte-rrtmgp-cpp/rte-rrtmgp/rrtmgp/data/rrtmgp-data-sw-g112-210809.nc', 'coefficients_sw.nc')
+            copy_or_link('../../rte-rrtmgp-cpp/rte-rrtmgp/rrtmgp/data/rrtmgp-data-lw-g128-210809.nc', 'coefficients_lw.nc')
+            copy_or_link('../../rte-rrtmgp-cpp/rte-rrtmgp/rrtmgp/data/rrtmgp-data-sw-g112-210809.nc', 'coefficients_sw.nc')
         else:
             raise Exception('\"{}\" is not a valid g-point option...'.format(gpt_set))
 
-        link('../../rte-rrtmgp-cpp/rte-rrtmgp/extensions/cloud_optics/rrtmgp-cloud-optics-coeffs-lw.nc', 'cloud_coefficients_lw.nc')
-        link('../../rte-rrtmgp-cpp/rte-rrtmgp/extensions/cloud_optics/rrtmgp-cloud-optics-coeffs-sw.nc', 'cloud_coefficients_sw.nc')
+        copy_or_link('../../rte-rrtmgp-cpp/rte-rrtmgp/extensions/cloud_optics/rrtmgp-cloud-optics-coeffs-lw.nc', 'cloud_coefficients_lw.nc')
+        copy_or_link('../../rte-rrtmgp-cpp/rte-rrtmgp/extensions/cloud_optics/rrtmgp-cloud-optics-coeffs-sw.nc', 'cloud_coefficients_sw.nc')
 
     """
     Create vertical grid for LES
     """
-    zsize = 4000
-    ktot = 160
     dz = zsize/ktot
     z = np.arange(dz/2, zsize, dz)
 
@@ -97,11 +106,14 @@ if __name__ == '__main__':
     """
     ini = mht.Read_namelist('cabauw.ini.base')
 
-    itot = ini['grid']['itot']
-    jtot = ini['grid']['jtot']
-
+    ini['grid']['itot'] = itot
+    ini['grid']['jtot'] = jtot
     ini['grid']['ktot'] = ktot
+
+    ini['grid']['xsize'] = xsize
+    ini['grid']['ysize'] = ysize
     ini['grid']['zsize'] = zsize
+
     ini['buffer']['zstart'] = zsize*3/4.
 
     if use_htessel:
@@ -127,6 +139,8 @@ if __name__ == '__main__':
     else:
         ini['radiation']['swradiation'] = 'prescribed'
         ini['radiation']['swtimedep_prescribed'] = True
+
+    ini['time']['endtime'] = endtime
 
     ini.save('cabauw.ini', allow_overwrite=True)
 
@@ -312,3 +326,43 @@ if __name__ == '__main__':
         # Save binary input MicroHH, and NetCDF file for visual validation/plotting/etc.
         lsm_data.save_binaries(allow_overwrite=True)
         lsm_data.save_netcdf('lsm_input.nc', allow_overwrite=True)
+
+
+if __name__ == '__main__':
+    """
+    Case switches.
+    """
+    TF = np.float64              # Switch between double (float64) and single (float32) precision.
+    use_htessel = True           # False = prescribed surface H+LE fluxes from ERA5.
+    use_rrtmgp = True            # False = prescribed radiation from ERA5.
+    use_rt = False               # False = 2stream solver for shortwave down, True = raytracer.
+    use_homogeneous_z0 = True    # False = checkerboard pattern roughness lengths.
+    use_homogeneous_ls = True    # False = checkerboard pattern (some...) land-surface fields.
+
+    # Switch between the two default RRTMGP g-point sets.
+    gpt_set = '128_112' # or '256_224'
+
+    # Simple equidistant grid.
+    zsize = 4000
+    ktot = 160
+
+    itot = 512
+    jtot = 512
+
+    xsize = 25600
+    ysize = 25600
+
+    endtime = 43200
+
+    # Create input files.
+    create_case_input(
+            use_htessel,
+            use_rrtmgp,
+            use_rt,
+            use_homogeneous_z0,
+            use_homogeneous_ls,
+            gpt_set,
+            itot, jtot, ktot,
+            xsize, ysize, zsize,
+            endtime,
+            TF)

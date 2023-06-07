@@ -496,6 +496,41 @@ namespace
     }
 
     template<typename TF>
+    void calc_path(
+        TF* const restrict path,
+        const TF* const restrict fld,
+        const TF* const restrict rhoref,
+        const TF* const restrict dz,
+        const int istart, const int iend,
+        const int jstart, const int jend,
+        const int kstart, const int kend,
+        const int icells, const int ijcells)
+    {
+        #pragma omp parallel for
+        for (int j=jstart; j<jend; ++j)
+            #pragma ivdep
+            for (int i=istart; i<iend; ++i)
+            {
+                const int ij = i + j*icells;
+                path[ij] = TF(0);
+            }
+
+        #pragma omp parallel for
+        for (int k=kstart; k<kend; ++k)
+        {
+            for (int j=jstart; j<jend; ++j)
+                #pragma ivdep
+                for (int i=istart; i<iend; ++i)
+                {
+                    const int ij = i + j*icells;
+                    const int ijk = ij + k*ijcells;
+
+                    path[ij] += rhoref[k] * fld[ijk] * dz[k];
+                }
+        }
+    }
+
+    template<typename TF>
     void calc_T_h(TF* restrict Th, TF* restrict thl,  TF* restrict qt,
                   TF* restrict ph, TF* restrict thlh, TF* restrict qth, TF* restrict ql,
                   const int istart, const int iend,
@@ -1000,12 +1035,12 @@ Thermo_moist<TF>::Thermo_moist(Master& masterin, Grid<TF>& gridin, Fields<TF>& f
     // BvS test for updating hydrostatic prssure during run
     // swupdate..=0 -> initial base state pressure used in saturation calculation
     // swupdate..=1 -> base state pressure updated before saturation calculation
-    bs.swupdatebasestate = inputin.get_item<bool>("thermo", "swupdatebasestate", "", false);
+    bs.swupdatebasestate = inputin.get_item<bool>("thermo", "swupdatebasestate", "", true);
 
     // Time variable surface pressure
     tdep_pbot = std::make_unique<Timedep<TF>>(master, grid, "p_sbot", inputin.get_item<bool>("thermo", "swtimedep_pbot", "", false));
 
-    available_masks.insert(available_masks.end(), {"ql", "qlcore"});
+    available_masks.insert(available_masks.end(), {"ql", "qlcore", "bplus", "bmin"});
 }
 
 template<typename TF>
@@ -1211,13 +1246,16 @@ void Thermo_moist<TF>::create_basestate(Input& inputin, Netcdf_handle& input_nc)
 }
 
 template<typename TF>
-void Thermo_moist<TF>::create(Input& inputin, Netcdf_handle& input_nc, Stats<TF>& stats, Column<TF>& column, Cross<TF>& cross, Dump<TF>& dump)
+void Thermo_moist<TF>::create(
+        Input& inputin, Netcdf_handle& input_nc, Stats<TF>& stats,
+        Column<TF>& column, Cross<TF>& cross, Dump<TF>& dump, Timeloop<TF>& timeloop)
 {
-    create_basestate(inputin, input_nc);
-
-    // 7. Process the time dependent surface pressure
+    // Process the time dependent surface pressure
     std::string timedep_dim = "time_surface";
     tdep_pbot->create_timedep(input_nc, timedep_dim);
+    tdep_pbot->update_time_dependent(bs.pbot, timeloop);
+
+    create_basestate(inputin, input_nc);
 
     // Init the toolbox classes.
     boundary_cyclic.init();
@@ -1313,6 +1351,27 @@ void Thermo_moist<TF>::get_mask(Stats<TF>& stats, std::string mask_name)
         field3d_operators.subtract_mean_profile(bh->fld.data(), bh->fld_mean.data());
 
         stats.set_mask_thres(mask_name, *b, *bh, 0., Stats_mask_type::Plus);
+
+        fields.release_tmp(b);
+        fields.release_tmp(bh);
+    }
+    else if (mask_name == "bplus" || mask_name == "bmin")
+    {
+        auto b = fields.get_tmp();
+        auto bh = fields.get_tmp();
+
+        get_thermo_field(*b, "b", true, true);
+        get_thermo_field(*bh, "b_h", true, true);
+
+        field3d_operators.calc_mean_profile(b->fld_mean.data(), b->fld.data());
+        field3d_operators.calc_mean_profile(bh->fld_mean.data(), bh->fld.data());
+        field3d_operators.subtract_mean_profile(b->fld.data(), b->fld_mean.data());
+        field3d_operators.subtract_mean_profile(bh->fld.data(), bh->fld_mean.data());
+
+        if (mask_name == "bplus")
+            stats.set_mask_thres(mask_name, *b, *bh, 0., Stats_mask_type::Plus);
+        else
+            stats.set_mask_thres(mask_name, *b, *bh, 0., Stats_mask_type::Min);
 
         fields.release_tmp(b);
         fields.release_tmp(bh);
@@ -1778,6 +1837,9 @@ void Thermo_moist<TF>::create_column(Column<TF>& column)
         column.add_prof("thv", "Virtual potential temperature", "K", "z");
         column.add_prof("ql", "Liquid water mixing ratio", "kg kg-1", "z");
         column.add_prof("qi", "Ice mixing ratio", "kg kg-1", "z");
+
+        column.add_time_series("ql_path", "Liquid water path", "kg m-2");
+        column.add_time_series("qi_path", "Ice path", "kg m-2");
     }
 }
 
@@ -1958,6 +2020,12 @@ void Thermo_moist<TF>::exec_stats(Stats<TF>& stats)
 template<typename TF>
 void Thermo_moist<TF>::exec_column(Column<TF>& column)
 {
+    auto& gd = grid.get_grid_data();
+
+    #ifndef USECUDA
+    bs_stats = bs;
+    #endif
+
     const TF no_offset = 0.;
     auto output = fields.get_tmp();
 
@@ -1966,10 +2034,34 @@ void Thermo_moist<TF>::exec_column(Column<TF>& column)
     column.calc_column("thv", output->fld.data(), no_offset);
 
     get_thermo_field(*output, "ql", false, true);
+
+    calc_path(
+        output->fld_bot.data(),
+        output->fld.data(),
+        bs_stats.rhoref.data(),
+        gd.dz.data(),
+        gd.istart, gd.iend,
+        gd.jstart, gd.jend,
+        gd.kstart, gd.kend,
+        gd.icells, gd.ijcells);
+
     column.calc_column("ql", output->fld.data(), no_offset);
+    column.calc_time_series("ql_path", output->fld_bot.data(), no_offset);
 
     get_thermo_field(*output, "qi", false, true);
+
+    calc_path(
+        output->fld_bot.data(),
+        output->fld.data(),
+        bs_stats.rhoref.data(),
+        gd.dz.data(),
+        gd.istart, gd.iend,
+        gd.jstart, gd.jend,
+        gd.kstart, gd.kend,
+        gd.icells, gd.ijcells);
+
     column.calc_column("qi", output->fld.data(), no_offset);
+    column.calc_time_series("qi_path", output->fld_bot.data(), no_offset);
 
     fields.release_tmp(output);
 }

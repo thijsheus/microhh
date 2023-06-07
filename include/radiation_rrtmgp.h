@@ -185,6 +185,10 @@ class Radiation_rrtmgp : public Radiation<TF>
         bool sw_clear_sky_stats;
         bool sw_fixed_sza;
 
+        // Make sure that the sw radiation is tuned at the first `exec()`. This
+        // ensures that sw is tuned for the full 3D field, and not for the column stats.
+        bool sw_is_tuned = false;
+
         double dt_rad;
         unsigned long idt_rad;
 
@@ -198,9 +202,6 @@ class Radiation_rrtmgp : public Radiation<TF>
         Float sfc_alb_dif; // Surface albedo for diffuse light.
         Float mu0;         // Cosine of solar zenith angle.
         Float Nc0;         // Total droplet number concentration.
-
-        Float lat; // Latitude (degrees)
-        Float lon; // Longitude (degrees)
 
         // The reference column for the full profile.
         Array<Float,2> lw_flux_dn_inc;

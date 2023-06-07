@@ -388,9 +388,6 @@ Boundary_surface<TF>::Boundary_surface(
 template<typename TF>
 Boundary_surface<TF>::~Boundary_surface()
 {
-    #ifdef USECUDA
-    clear_device();
-    #endif
 }
 
 template<typename TF>
@@ -488,6 +485,7 @@ void Boundary_surface<TF>::process_input(Input& inputin, Thermo<TF>& thermo)
         std::string msg = "Neumann bc is not supported in surface model";
         throw std::runtime_error(msg);
     }
+
     // read the ustar value only if fixed fluxes are prescribed
     else if (mbcbot == Boundary_type::Ustar_type)
         ustarin = inputin.get_item<TF>("boundary", "ustar", "");

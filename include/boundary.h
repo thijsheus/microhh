@@ -122,6 +122,7 @@ class Boundary
         virtual void prepare_device();
         virtual void forward_device();
         virtual void backward_device();
+        virtual void clear_device();
         #endif
 
     protected:
@@ -170,12 +171,14 @@ class Boundary
         void process_inflow(Input&, Netcdf_handle&); ///< Process the time dependent settings from the ini file.
 
         #ifdef USECUDA
-        void clear_device();
         std::map<std::string, TF*> inflow_profiles_g;
+        std::map<std::string, TF*> sbot_2d_prev_g;
+        std::map<std::string, TF*> sbot_2d_next_g;
         #endif
 
         // GPU functions and variables
-        void set_bc_g(TF*, TF*, TF*, Boundary_type, TF, TF, TF); ///< Set the values for the boundary fields.
+        void set_bc_g   (TF*, TF*, TF*, Boundary_type, TF, TF, TF, bool); ///< Set the values for the boundary fields.
+        void set_bc_2d_g(TF*, TF*, TF*, TF*, Boundary_type, TF, TF, bool); ///< Set the values for the boundary fields.
 
     private:
         virtual void update_slave_bcs(); // Update the slave boundary values.
