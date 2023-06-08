@@ -312,6 +312,7 @@ class Create_ncfile():
             filename,
             varname,
             dimensions,
+            units,
             precision='',
             compression=True):
         self.ncfile = nc.Dataset(filename, "w", clobber=True)
@@ -352,6 +353,7 @@ class Create_ncfile():
             self.dim[key] = self.ncfile.createDimension(key, len(value))
             self.dimvar[key] = self.ncfile.createVariable(
                 key, precision, (key))
+            self.dimvar[key].units = units[key]
             if key != 'time':
                 self.dimvar[key][:] = grid.dim[key][value]
 
@@ -359,6 +361,7 @@ class Create_ncfile():
             varname, precision, tuple(
                 self.sortdims(
                     dimensions.keys())), zlib=compression)
+        self.var.units = units[varname]
 
     def sync(self):
         self.ncfile.sync()

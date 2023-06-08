@@ -24,15 +24,20 @@ import microhh_tools as mht     # available in microhh/python directory
 import argparse
 import os
 import glob
+import struct
 import time as tm
 import numpy as np
 from multiprocessing import Pool
 
 def convert_to_nc(variables):
+    if doubledump:
+        niter_tot = niter *2 -1
+    else:
+        niter_tot = niter
     for variable in variables:
         filename = "{0}.nc".format(variable)
         dim = {
-            'time': range(niter),
+            'time': range(niter_tot),
             'z': range(kmax),
             'y': range(jtot),
             'x': range(itot)}
@@ -43,29 +48,38 @@ def convert_to_nc(variables):
         if variable == 'w':
             dim['zh'] = dim.pop('z')
         try:
-            ncfile = mht.Create_ncfile(
-                grid, filename, variable, dim, precision, compression)
-            # Loop through the files and read 3d field
-            for t in range(niter):
-                otime = round((starttime + t * sampletime) / 10**iotimeprec)
+            def convert(otime, tout):
                 f_in = "{0:}.{1:07d}".format(variable, otime)
-
                 try:
                     fin = mht.Read_binary(grid, f_in)
                 except Exception as ex:
                     print (ex)
                     raise Exception(
                         'Stopping: cannot find file {}'.format(f_in))
-
                 print("Processing %8s, time=%7i" % (variable, otime))
-                ncfile.dimvar['time'][t] = otime * 10**iotimeprec
+                ncfile.dimvar['time'][tout] = otime * 10**iotimeprec
                 if (perslice):
                     for k in range(kmax):
-                        ncfile.var[t,k,:,:] = fin.read(itot * jtot)
+                        ncfile.var[tout,k,:,:] = fin.read(itot * jtot)
                 else:
-                    ncfile.var[t,:,:,:] = fin.read(itot * jtot * kmax)
+                    ncfile.var[tout,:,:,:] = fin.read(itot * jtot * kmax)
 
                 fin.close()
+
+            ncfile = mht.Create_ncfile(
+                grid, filename, variable, dim, units, precision, compression)
+            # Loop through the files and read 3d field
+            tout = 0
+            for t in range(niter):
+                otime = round((starttime + t * sampletime) / 10**iotimeprec)
+                if (doubledump and t>0):
+                    timedata = struct.unpack("=QQi",open('time.{0:07d}'.format(otime), 'rb').read())
+                    otime2 = round((timedata[0]-timedata[1]) *10**(-iotimeprec-9)-0.5)
+                    convert(otime2, tout)
+                    tout += 1
+
+                convert(otime, tout)
+                tout += 1
             ncfile.close()
         except Exception as ex:
             print(ex)
@@ -124,6 +138,7 @@ if args.directory is not None:
     os.chdir(args.directory)
 
 nl = mht.Read_namelist(args.filename)
+
 itot = nl['grid']['itot']
 jtot = nl['grid']['jtot']
 ktot = nl['grid']['ktot']
@@ -133,6 +148,10 @@ kmax = min(kmax, ktot)
 starttime = args.starttime if args.starttime is not None else nl['time']['starttime']
 endtime = args.endtime if args.endtime is not None else nl['time']['endtime']
 sampletime = args.sampletime if args.sampletime is not None else nl['dump']['sampletime']
+try:
+    doubledump = (nl['dump']['swdoubledump']==1)
+except:
+    doubledump = False
 try:
     iotimeprec = nl['time']['iotimeprec']
 except KeyError:
@@ -160,6 +179,27 @@ grid = mht.Read_grid(itot, jtot, ktot)
 if kmax < ktot:
     grid.dim['z'] = grid.dim['z'][:kmax]
     grid.dim['zh'] = grid.dim['zh'][:kmax+1]
+
+units = {}
+units['time'] = "seconds since "
+if ('datetime_utc' in nl['time']):
+    units['time'] = units['time'] + nl['time']['datetime_utc']
+else:
+    units['time'] = units['time'] + '2000-1-1 0:0:0'
+    
+for key in grid.dim.keys():
+    units[key] = 'm'
+for key in variables:
+    if (key in ["u","v","w"]):
+        units[key] = "m s-1"
+    elif (key in ["thl","thv"]):
+        units[key] = "K"
+    elif (key in ["qt","ql", "qr"]):
+        units[key] = "kg kg-1"
+    elif (key in ["nr"]):
+        units[key] = "kg-1"
+    else:
+        units[key] = ""
 
 chunks = [variables[i::nprocs] for i in range(nprocs)]
 

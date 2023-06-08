@@ -22,4 +22,7 @@
 FILE(GLOB sourcefiles "../src/*.cxx" "../src/*.cu")
 include_directories("../include" "../rte-rrtmgp-cpp/include" SYSTEM ${INCLUDE_DIRS})
 
+if(USECUDA_LEGACY)
+	cuda_add_library(microhhc STATIC ${sourcefiles})
+endif()
 add_library(microhhc STATIC ${sourcefiles})

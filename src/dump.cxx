@@ -40,6 +40,8 @@ Dump<TF>::Dump(Master& masterin, Grid<TF>& gridin, Fields<TF>& fieldsin, Input& 
 
     if (swdump)
     {
+        swdoubledump = inputin.get_item<bool>("dump", "swdoubledump", "", false);
+
         // Get the time at which the dump sections are triggered.
         sampletime = inputin.get_item<double>("dump", "sampletime", "");
 
@@ -91,15 +93,17 @@ unsigned long Dump<TF>::get_time_limit(unsigned long itime)
 }
 
 template<typename TF>
-bool Dump<TF>::do_dump(unsigned long itime)
+bool Dump<TF>::do_dump(unsigned long itime, unsigned long idt)
 {
     // Check if dump is enabled.
     if (!swdump)
         return false;
-
     // Check if current time step is dump time.
     if (itime % isampletime != 0)
-        return false;
+        if (((itime + idt) % isampletime ==0) && swdoubledump)
+            return true;
+        else
+            return false;
 
     // Return true such that column are computed
     return true;

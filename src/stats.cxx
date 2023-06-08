@@ -624,7 +624,7 @@ void Stats<TF>::create(const Timeloop<TF>& timeloop, std::string sim_name)
         if (timeloop.has_utc_time())
             m.time_var->add_attribute("units", "seconds since " + timeloop.get_datetime_utc_start_string());
         else
-            m.time_var->add_attribute("units", "seconds since start");
+            m.time_var->add_attribute("units", "seconds since 2000-1-1 0:0:0");
         m.time_var->add_attribute("long_name", "Time");
 
         // Add vertical grid variables (atmosphere)

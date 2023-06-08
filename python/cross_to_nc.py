@@ -81,7 +81,7 @@ def convert_to_nc(variables):
                     dim['zh'] = dim.pop('z')
 
                 ncfile = mht.Create_ncfile(
-                    grid, filename, variable, dim, precision, compression)
+                    grid, filename, variable, dim, units, precision, compression)
 
                 for t in range(niter):
                     for k in range(len(indexes_local)):
@@ -222,6 +222,28 @@ niter = int((endtime - starttime) / sampletime + 1)
 
 grid = mht.Read_grid(itot, jtot, ktot)
 
+units = {}
+units['time'] = "seconds since "
+if (nl['time']['datetime_utc'] is None):
+    units['time'] = units['time'] + '2000-1-1 0:0:0'
+else:
+    units['time'] = units['time'] + nl['time']['datetime_utc']
+    
+for key in grid.dim.keys():
+    units[key] = 'm'
+for key in variables:
+    if (key in ["u","v","w"]):
+        units[key] = "m s-1"
+    elif (key in ["thl","thv"]):
+        units[key] = "K"
+    elif (key in ["qt","ql", "qr"]):
+        units[key] = "kg kg-1"
+    elif (key in ["nr"]):
+        units[key] = "kg-1"
+    else:
+        units[key] = ""
+
+        
 chunks = [variables[i::nprocs] for i in range(nprocs)]
 
 pool = Pool(processes=nprocs)

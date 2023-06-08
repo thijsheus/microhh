@@ -461,7 +461,6 @@ void Timeloop<TF>::save(int starttime, unsigned long itime_in, unsigned long idt
             fwrite(&itime_in    , sizeof(unsigned long), 1, pFile);
             fwrite(&idt_in      , sizeof(unsigned long), 1, pFile);
             fwrite(&iteration_in, sizeof(int), 1, pFile);
-
             fclose(pFile);
             master.print_message("OK\n");
         }
