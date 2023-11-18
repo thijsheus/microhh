@@ -791,6 +791,48 @@ namespace
     }
 
     template<typename TF>
+    void calc_zi_touze(TF* restrict zi, const TF* const restrict fld, const TF* const restrict rho, const TF epsilon, const TF zmin, const TF* const restrict z, const TF* const restrict dz,
+                                const int istart, const int iend,
+                                const int jstart, const int jend,
+                                const int kstart, const int kend,
+                                const int icells, const int ijcells)
+    {
+        const int jj  = icells;
+        for (int j=jstart; j<jend; j++)
+            #pragma ivdep
+            for (int i=istart; i<iend; i++)
+            {
+                const int ij = i + j*icells;
+                TF inttheta = 0.;
+                TF intrho   = 0.;
+                TF mntheta  = 0.;
+                TF mntheta0 = 0.;
+
+                for (int k=kstart; k<kend; ++k)
+                {
+                    if (z[k] < zmin)
+                        continue;
+
+                    const int ijk = i + j*icells + k*ijcells;
+                    inttheta += rho[k] * fld[ijk] * dz[k];
+                    intrho   += rho[k] * dz[k];
+                    mntheta = inttheta/intrho + epsilon;
+                    if (fld[ijk] > mntheta)
+                    {
+                        TF f2 = fld[ijk] - mntheta;
+                        TF f1 = fld[ijk - ijcells] - mntheta0;
+                        TF a = (f2 - f1) / (z[k] - z[k-1]);
+                        TF b = f1 - a * z[k-1];
+
+                        zi[ij] = -b / a;
+                        break;
+                    }
+                    mntheta0 = mntheta;
+                }
+            }
+    }
+
+    template<typename TF>
     void calc_radiation_fields(
             TF* restrict T, TF* restrict T_h, TF* restrict vmr_h2o,
             TF* restrict clwp, TF* restrict ciwp, TF* restrict T_sfc,
@@ -1966,7 +2008,7 @@ void Thermo_moist<TF>::create_cross(Cross<TF>& cross)
         const std::vector<std::string> allowed_crossvars_qi = {"qi", "qi_path"};
         const std::vector<std::string> allowed_crossvars_qlqi = {"qlqi", "qlqi_path", "qlqi_base", "qlqi_top"};
         const std::vector<std::string> allowed_crossvars_qsat = {"qsat_path"};
-        const std::vector<std::string> allowed_crossvars_misc = {"w500hpa"};
+        const std::vector<std::string> allowed_crossvars_misc = {"w500hpa", "zi_touze"};
         const std::vector<std::string> allowed_crossvars_qlqithv = {"qlqicore_max_thv_prime"};
 
         std::vector<std::string> bvars  = cross.get_enabled_variables(allowed_crossvars_b);
@@ -2329,6 +2371,23 @@ void Thermo_moist<TF>::exec_cross(Cross<TF>& cross, unsigned long iotime)
 
         fields.release_tmp(qlqi);
         fields.release_tmp(thv);
+    }
+    for (auto& it : crosslist)
+    {
+        if (it == "zi_touze")
+        {
+            auto thv  = fields.get_tmp();
+            get_thermo_field(*thv,  "thv", false, true);
+
+            TF epsilon = 0.2;
+            TF zmin = 100.;
+            calc_zi_touze(thv->fld_bot.data(), thv->fld.data(), bs_stats.rhoref.data(), epsilon, zmin, gd.z.data(), gd.dz.data(), gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend, gd.icells, gd.ijcells);
+            cross.cross_plane(thv->fld_bot.data(), no_offset, "zi_touze", iotime);
+
+            fields.release_tmp(thv);
+
+        }
+
     }
 }
 
