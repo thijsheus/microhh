@@ -791,7 +791,7 @@ namespace
     }
 
     template<typename TF>
-    void calc_zi_touze(TF* restrict zi, const TF* const restrict fld, const TF* const restrict rho, const TF epsilon, const TF zmin, const TF* const restrict z, const TF* const restrict dz,
+    void calc_zi_touze(TF* restrict zi, const TF* const restrict fld, const TF* const restrict rho, const TF epsilon, const int kmin, const TF* const restrict z, const TF* const restrict dz,
                                 const int istart, const int iend,
                                 const int jstart, const int jend,
                                 const int kstart, const int kend,
@@ -810,7 +810,7 @@ namespace
 
                 for (int k=kstart; k<kend; ++k)
                 {
-                    if (z[k] < zmin)
+                    if (k < kmin)
                         continue;
 
                     const int ijk = i + j*icells + k*ijcells;
@@ -2380,8 +2380,9 @@ void Thermo_moist<TF>::exec_cross(Cross<TF>& cross, unsigned long iotime)
             get_thermo_field(*thv,  "thv", false, true);
 
             TF epsilon = 0.2;
-            TF zmin = 100.;
-            calc_zi_touze(thv->fld_bot.data(), thv->fld.data(), bs_stats.rhoref.data(), epsilon, zmin, gd.z.data(), gd.dz.data(), gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend, gd.icells, gd.ijcells);
+            // TF zmin = 100.;
+            int kmin = 2;
+            calc_zi_touze(thv->fld_bot.data(), thv->fld.data(), bs_stats.rhoref.data(), epsilon, kmin, gd.z.data(), gd.dz.data(), gd.istart, gd.iend, gd.jstart, gd.jend, gd.kstart, gd.kend, gd.icells, gd.ijcells);
             cross.cross_plane(thv->fld_bot.data(), no_offset, "zi_touze", iotime);
 
             fields.release_tmp(thv);
