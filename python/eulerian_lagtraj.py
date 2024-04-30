@@ -147,13 +147,13 @@ def create_microhhforcing(dict):
     high_veg_cover = all_data['high_veg_cover'].values[select_arr];
 
     # set the height
-    if dict['fine_grid']==True:
+    if dict['fine_grid']:
         z_new=np.zeros(300)
         dz=15
         z_new[0]=15;
         for i in range(1,z_new.size): 
             z_new[i]=z_new[i-1]+dz
-        z_end_ind=np.nonzero((z_new>z_top))[0][0]    
+        z_end_ind=np.nonzero((z_new>dict['z_top']))[0][0]    
         z=z_new[0:z_end_ind+1]
         kmax=z.size
     else:
@@ -726,11 +726,13 @@ def generate_forcing(cliargs):
     else:
         dict['end_date'] = dict['datetime_origin'] + dict['forward_duration']
     
-    if 'fine_grid' not in dict.keys():
+    if 'fine_grid' not in cliargs.keys():
         dict['fine_grid'] = False
+    else:
+        dict['fine_grid'] = cliargs['fine_grid']
     
-    if 'z_top' in dict.keys():
-        dict['z_top'] = float(dict['z_top'])
+    if 'z_top' in cliargs.keys():
+        dict['z_top'] = float(cliargs['z_top'])
     else:
         dict['z_top'] = 12000.
 
