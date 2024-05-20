@@ -140,28 +140,44 @@ def create_microhhforcing(dict):
     h_soil = all_data['h_soil'].values[:];
     q_soil = all_data['q_soil'].values[select_arr,:];
     t_soil = all_data['t_soil'].values[select_arr,:];
+    t_skin = all_data['t_skin'].values[select_arr];
     low_veg_lai = all_data['low_veg_lai'].values[select_arr];
     high_veg_lai = all_data['high_veg_lai'].values[select_arr];
     low_veg_cover = all_data['low_veg_cover'].values[select_arr];
     high_veg_cover = all_data['high_veg_cover'].values[select_arr];
 
     # set the height
-    z_new=np.zeros(300)
-    dz=10
-    z_abs=10;
-    for i in range(0,z_new.size): 
-            if i<12:
+    if dict['fine_grid']:
+        z_new=np.zeros(300)
+        dz=15
+        z_new[0]=15;
+        for i in range(1,z_new.size): 
+            z_new[i]=z_new[i-1]+dz
+        z_end_ind=np.nonzero((z_new>dict['z_top']))[0][0]    
+        z=z_new[0:z_end_ind+1]
+        kmax=z.size
+    else:
+        z_new=np.zeros(300)
+        dz=20
+        z_new[0]=10;
+        for i in range(1,z_new.size): 
+            z_new[i]=z_new[i-1]+dz
+            if i<7:
                 dz=dz+int(round(0.1*dz,0));
-            elif i==14:
-                z_abs=300;
+            elif i==7:
+                z_new[i]=200;
                 dz=40;
-            elif z_abs>5000:
+            elif z_new[i]>5000:
                 dz=dz+int(round(0.1*dz,0));
-            z_new[i] = z_abs;
-            z_abs = z_abs+dz
-    z_end_ind=np.nonzero((z_new>29000))[0][0]
-    z=z_new[0:z_end_ind+1]
-    kmax=z.size
+        z_end_ind=np.nonzero((z_new>dict['z_top']))[0][0]
+        z=z_new[0:z_end_ind+1]
+        kmax=z.size
+
+    zh = 0.5*(z[:-1] + z[1:])
+    zh = np.append(0., zh)
+    zh = np.append(zh, z_new[z_end_ind+1])
+
+    time = time - time[0];
     ############################## Declare input variables to nc input and constants ##################################
 
     sat_r = np.zeros(time.size)
@@ -198,93 +214,140 @@ def create_microhhforcing(dict):
     cp  = 1005.
     Lv  = 2.5e6
     Rd  = 287.
-    tau = 10800;
+    tau = 21600;
 
     ######################## Radiation Calculation and NC input ##################################
 
     nc_file = nc.Dataset(basename+"_input.nc", mode="w", datamodel="NETCDF4", clobber=True)
     
-    z_top = 70.e3
+    z_top_rad = 70.e3
     dz = 500.
-    z_rad  = np.arange(dz/2, z_top, dz)
-    zh_rad = np.arange(   0, z_top-dz/2, dz)
-    zh_rad = np.append(zh_rad, z_top)
-    if np.isnan(mean_height[0]):
-        mean_height[0]=0.
-    zun_rad=zun[0,:]-mean_height[0]
-    interp_rad=(np.logical_not(np.isnan(zun_rad)))
-    p_lay = np.interp(z_rad,zun_rad[interp_rad],pres_un[0,interp_rad])
-    p_lev = np.interp(zh_rad,zun_rad[interp_rad],pres_un[0,interp_rad])
-    T_lay = np.interp(z_rad,zun_rad[interp_rad],T_un[0,interp_rad])
-    T_lev = np.interp(zh_rad,zun_rad[interp_rad],T_un[0,interp_rad])
+    z_rad  = np.arange(dz/2, z_top_rad, dz)
+    zh_rad = np.arange(   0, z_top_rad-dz/2, dz)
+    zh_rad = np.append(zh_rad, z_top_rad)
 
-    co2 =  348.e-6
+
+    p_lay=np.zeros((time.size,z_rad.size)); p_lev=np.zeros((time.size,zh_rad.size));
+    T_lay=np.zeros((time.size,z_rad.size)); T_lev=np.zeros((time.size,zh_rad.size));
+    qt_rad=np.zeros((time.size,z_rad.size)); o3_rad=np.zeros((time.size,z_rad.size));
+    
+    p_lay_bg=np.zeros((time.size,z.size)); p_lev_bg=np.zeros((time.size,zh.size));
+    T_lay_bg=np.zeros((time.size,z.size)); T_lev_bg=np.zeros((time.size,zh.size));
+    qt_rad_bg=np.zeros((time.size,z.size)); o3_rad_bg=np.zeros((time.size,z.size));
+
+    for i in range(0,time.size):
+        if np.isnan(mean_height[i]):
+            mean_height[i]=0.
+        zun_rad=zun[i,:]-mean_height[i]
+        interp_rad=(np.logical_not(np.isnan(zun_rad[:])))
+        p_lay[i,:] = np.interp(z_rad,zun_rad[interp_rad],pres_un[i,interp_rad])
+        p_lev[i,:] = np.interp(zh_rad,zun_rad[interp_rad],pres_un[i,interp_rad])
+        T_lay[i,:] = np.interp(z_rad,zun_rad[interp_rad],T_un[i,interp_rad])
+        T_lev[i,:] = np.interp(zh_rad,zun_rad[interp_rad],T_un[i,interp_rad])
+        qt_rad[i,:] = np.interp(z_rad,zun_rad[interp_rad],qt_un[i,interp_rad])
+        o3_rad[i,:] = np.interp(z_rad,zun_rad[interp_rad],o3_un[i,interp_rad]) 
+
+        p_lay_bg[i,:] = np.interp(z,zun_rad[interp_rad],pres_un[i,interp_rad])
+        p_lev_bg[i,:] = np.interp(zh,zun_rad[interp_rad],pres_un[i,interp_rad])
+        T_lay_bg[i,:] = np.interp(z,zun_rad[interp_rad],T_un[i,interp_rad])
+        T_lev_bg[i,:] = np.interp(zh,zun_rad[interp_rad],T_un[i,interp_rad])
+        qt_rad_bg[i,:] = np.interp(z,zun_rad[interp_rad],qt_un[i,interp_rad])
+        o3_rad_bg[i,:] = np.interp(z,zun_rad[interp_rad],o3_un[i,interp_rad]) 
+
+    co2 =  400.e-6
     ch4 = 1650.e-9
     n2o =  306.e-9
     n2 = 0.7808
     o2 = 0.2095
+    xm_air = 28.97; xm_h2o = 18.01528
+    h2o=qt_rad*xm_air/xm_h2o
+    h2o_bg=qt_rad_bg*xm_air/xm_h2o
 
+    ######## Create Dimensions ############
+    nc_file.createDimension("z", kmax)
+    nc_file.createDimension("zh", kmax+1)
+    nc_file.createDimension("time_ls", time.size)
+    nc_file.createDimension("time_surface", time.size)
+    nc_file.createDimension("time_latlon", time.size)
+    nc_file.createDimension("lay", z_rad.size)
+    nc_file.createDimension("lev", zh_rad.size)
+    
+    ######## Create Groups ############
+    nc_group_init = nc_file.createGroup("init");
+    nc_group_timedep = nc_file.createGroup("timedep");
     nc_group_rad = nc_file.createGroup("radiation")
+    ######## Create Dimension Variables ############
+    nc_group_timedep.createDimension("time_ls", time.size)
+    nc_group_timedep.createDimension("lay", z_rad.size)
+    nc_group_timedep.createDimension("lev", zh_rad.size)
 
-    nc_group_rad.createDimension("lay", p_lay.size)
-    nc_group_rad.createDimension("lev", p_lev.size)
-
-    nc_z_lay = nc_group_rad.createVariable("z_lay", float_type, ("lay"))
-    nc_z_lev = nc_group_rad.createVariable("z_lev", float_type, ("lev"))
-    nc_z_lay[:] = z_rad [:]
-    nc_z_lev[:] = zh_rad[:]
+    nc_z = nc_file.createVariable("z", float_type, ("z"))
+    nc_zh = nc_file.createVariable("zh", float_type, ("zh"))
+    nc_z_lay = nc_file.createVariable("z_lay", float_type, ("lay"))
+    nc_z_lev = nc_file.createVariable("z_lev", float_type, ("lev"))
+    nc_time_ls = nc_file.createVariable("time_ls", float_type, ("time_ls"))
+    nc_time_rad = nc_group_timedep.createVariable("time_ls", float_type, ("time_ls"))
+    nc_time_surface = nc_file.createVariable("time_surface", float_type, ("time_surface"))
+    nc_time_latlon = nc_file.createVariable("time_latlon", float_type, ("time_latlon"))
+    
+    ######## Assign Values to Dimension Variables ############
+    nc_time_ls      [:] = time [:]
+    nc_time_rad     [:] = time [:]
+    nc_time_surface [:] = time [:]
+    nc_time_latlon  [:] = time [:]
+    nc_z            [:] = z    [:]
+    nc_zh           [:] = zh   [:]
+    ######## Create Radiation Dimension and Variables  ############
 
     nc_p_lay = nc_group_rad.createVariable("p_lay", float_type, ("lay"))
     nc_p_lev = nc_group_rad.createVariable("p_lev", float_type, ("lev"))
-    nc_p_lay[:] = p_lay[:]
-    nc_p_lev[:] = p_lev[:]
-
     nc_T_lay = nc_group_rad.createVariable("t_lay", float_type, ("lay"))
     nc_T_lev = nc_group_rad.createVariable("t_lev", float_type, ("lev"))
-    nc_T_lay[:] = T_lay[:]
-    nc_T_lev[:] = T_lev[:]
+
+    nc_p_lay_bg = nc_group_timedep.createVariable("p_lay", float_type, ("time_ls","lay"))
+    nc_p_lev_bg = nc_group_timedep.createVariable("p_lev", float_type, ("time_ls","lev"))
+    nc_T_lay_bg = nc_group_timedep.createVariable("t_lay", float_type, ("time_ls","lay"))
+    nc_T_lev_bg = nc_group_timedep.createVariable("t_lev", float_type, ("time_ls","lev"))
 
     nc_CO2 = nc_group_rad.createVariable("co2", float_type)
     nc_CH4 = nc_group_rad.createVariable("ch4", float_type)
     nc_N2O = nc_group_rad.createVariable("n2o", float_type)
     nc_O3  = nc_group_rad.createVariable("o3" , float_type, ("lay"))
+    nc_O3_bg  = nc_group_timedep.createVariable("o3_bg" , float_type, ("time_ls","lay"))
+    nc_H2O_bg = nc_group_timedep.createVariable("h2o_bg", float_type, ("time_ls","lay"))
     nc_H2O = nc_group_rad.createVariable("h2o", float_type, ("lay"))
     nc_N2  = nc_group_rad.createVariable("n2" , float_type)
     nc_O2  = nc_group_rad.createVariable("o2" , float_type)
-
     nc_CFC11 = nc_group_rad.createVariable("cfc11", float_type)
     nc_CFC12 = nc_group_rad.createVariable("cfc12", float_type)
     nc_CFC22 = nc_group_rad.createVariable("cfc22", float_type)
     nc_CCL4  = nc_group_rad.createVariable("ccl4" , float_type)
+    ######## Assign Values to Radiation Variables ############
+    nc_z_lay    [:]   = z_rad   [:]
+    nc_z_lev    [:]   = zh_rad  [:]
+    nc_p_lay    [:] = p_lay   [0,:]
+    nc_p_lev    [:] = p_lev   [0,:]
+    nc_T_lay    [:] = T_lay   [0,:]
+    nc_T_lev    [:] = T_lev   [0,:]
+    nc_p_lay_bg [:,:] = p_lay   [:,:]
+    nc_p_lev_bg [:,:] = p_lev   [:,:]
+    nc_T_lay_bg [:,:] = T_lay   [:,:]
+    nc_T_lev_bg [:,:] = T_lev   [:,:]
+    nc_CO2      [:]   = co2
+    nc_CH4      [:]   = ch4
+    nc_N2O      [:]   = n2o
+    nc_N2       [:]   = n2
+    nc_O2       [:]   = o2
+    nc_CFC11    [:]   = 0.
+    nc_CFC12    [:]   = 0.
+    nc_CFC22    [:]   = 0.
+    nc_CCL4     [:]   = 0.
+    nc_H2O      [:] = np.mean(h2o,axis=0)
+    nc_H2O_bg   [:,:] = h2o     [:,:]
+    nc_O3       [:] = np.mean(o3_rad,axis=0)
+    nc_O3_bg    [:] = o3_rad [:,:]
 
-    nc_CO2[:] = co2
-    nc_CH4[:] = ch4
-    nc_N2O[:] = n2o
-    #nc_O3 [:] = o3 [:]
-    #nc_H2O[:] = h2o[:]
-    nc_N2 [:] = n2
-    nc_O2 [:] = o2
-
-    nc_CFC11[:] = 0.
-    nc_CFC12[:] = 0.
-    nc_CFC22[:] = 0.
-    nc_CCL4 [:] = 0.
-
-    qt_rad=np.zeros(z_rad.size); o3_rad=np.zeros(z_rad.size);
-    qt_rad[:] = np.interp(z_rad,zun_rad[interp_rad],qt_un[0,interp_rad])
-    o3_rad[:] = np.interp(z_rad,zun_rad[interp_rad],o3_un[0,interp_rad])
-
-    xm_air = 28.97; xm_h2o = 18.01528
-    h2o=qt_rad*xm_air/xm_h2o
-    nc_H2O[:] = h2o[:]
-    nc_O3[:] = o3_rad[:]
     ######################## Calculation of variables ############################################
-
-    zh = 0.5*(z[:-1] + z[1:])
-    zh = np.append(0., zh)
-    zh = np.append(zh, z.size)
-
-    time = time - time[0];
 
 
     for n in range(0,time.size):
@@ -306,20 +369,18 @@ def create_microhhforcing(dict):
         tadv[n,:] = np.interp(z,zun[n,interp_arr],tadv_un[n,interp_arr])
         uadv[n,:] = np.interp(z,zun[n,interp_arr],uadv_un[n,interp_arr])
         vadv[n,:] = np.interp(z,zun[n,interp_arr],vadv_un[n,interp_arr])
-        qt[n,:] = np.interp(z,zun[n,interp_arr],qt_un[n,interp_arr])
-        u[n,:] = np.interp(z,zun[n,interp_arr],u_un[n,interp_arr])
-        v[n,:] = np.interp(z,zun[n,interp_arr],v_un[n,interp_arr])
         ugeo[n,:] = np.interp(z,zun[n,interp_arr],ug_un[n,interp_arr])
         vgeo[n,:] = np.interp(z,zun[n,interp_arr],vg_un[n,interp_arr])
 
-    ug = u; vg = v;
+    ug = ugeo; vg = vgeo;
     p_sbot = pres[:,0];
     nudge_factor[:,:]=1./tau
 
     for n in range(0,time.size):
         sat_r = mpcalc.saturation_mixing_ratio(p_sbot[n] * units.pascal , sst[n]* units.kelvin)
         qt_bot[n] = 0.981 * mpcalc.specific_humidity_from_mixing_ratio(sat_r)
-        
+        qt_bot[n] = mpcalc.mixing_ratio_from_specific_humidity(qt_bot[n] * units('kg/kg'))
+
         for k in range(0,kmax):
             w[n,k] = mpcalc.vertical_velocity(omega[n,k] * units.pascal / units.second, pres[n,k] * units.pascal, T[n,k] * units.kelvin) / (units.meter / units.second)
             th[n,k] = mpcalc.potential_temperature(pres[n,k] * units.pascal, T[n,k] * units.kelvin) / units.kelvin
@@ -332,7 +393,7 @@ def create_microhhforcing(dict):
     rhosurf = p_sbot / (Rd * thl[:,0] * (1. + 0.61 * qt[:,0]))
     lh_flx = -LE / (rhosurf * Lv) #J/m2s / (J/m3) --> m/s
     sh_flx = -H / (rhosurf * cp) # K m/s
-    
+    ths = sst / (pres0/1.e5)**(Rd/cp)
     ######################################### Land Surface Model #######################################
     def link(f1, f2):
         """
@@ -356,30 +417,6 @@ def create_microhhforcing(dict):
         var[:] = data
 
     ############################## write the data to a file ############################################
-
-    nc_file.createDimension("z", kmax)
-    nc_z = nc_file.createVariable("z", float_type, ("z"))
-    nc_z    [:] = z    [:]
-
-    nc_file.createDimension("zh", kmax+1)
-    nc_zh = nc_file.createVariable("zh", float_type, ("zh"))
-    nc_zh[:] = zh[:]
-
-    nc_file.createDimension("time_ls", time.size)
-    nc_time_ls = nc_file.createVariable("time_ls", float_type, ("time_ls"))
-    nc_time_ls [:] = time [:]
-
-    nc_file.createDimension("time_surface", time.size)
-    nc_time_surface = nc_file.createVariable("time_surface", float_type, ("time_surface"))
-    nc_time_surface [:] = time [:]
-
-    nc_file.createDimension("time_latlon", time.size)
-    nc_time_latlon = nc_file.createVariable("time_latlon", float_type, ("time_latlon"))
-    nc_time_latlon [:] = time [:]
-
-    nc_group_init = nc_file.createGroup("init");
-    nc_group_timedep = nc_file.createGroup("timedep")
-
     ##### initial conditions ############
     nc_thl   = nc_group_init.createVariable("thl"   , float_type, ("z"))
     nc_qt    = nc_group_init.createVariable("qt"    , float_type, ("z"))
@@ -396,6 +433,7 @@ def create_microhhforcing(dict):
     nc_N2O = nc_group_init.createVariable("n2o", float_type)
     nc_O3  = nc_group_init.createVariable("o3" , float_type, ("z"))
     nc_H2O = nc_group_init.createVariable("h2o", float_type, ("z"))
+    nc_H2O_bg = nc_group_init.createVariable("h2o_bg", float_type, ("z"))
     nc_N2  = nc_group_init.createVariable("n2" , float_type)
     nc_O2  = nc_group_init.createVariable("o2" , float_type)
 
@@ -406,9 +444,6 @@ def create_microhhforcing(dict):
 
 
     ###### forcing conditions ############
-    nc_group_timedep.createDimension("time_ls", time.size)
-    nc_time_ls = nc_group_timedep.createVariable("time_ls", float_type, ("time_ls"))
-    nc_time_ls [:] = time [:]
 
     nc_group_timedep.createDimension("time_nudge", time[:].size)
     nc_time_nudge = nc_group_timedep.createVariable("time_nudge", float_type, ("time_nudge"))
@@ -475,6 +510,7 @@ def create_microhhforcing(dict):
     nc_N2O[:] = n2o
     nc_O3 [:] = o3_f[0,:]
     nc_H2O[:] = qt[0,:] * xm_air/xm_h2o
+    nc_H2O_bg[:] = np.mean(qt,axis=0) * xm_air/xm_h2o
     nc_N2 [:] = n2
     nc_O2 [:] = o2
 
@@ -510,6 +546,7 @@ def create_microhhforcing(dict):
     ini['grid']['lon'] = np.mean(lon)
     ini['radiation']['sfc_alb_dir'] = np.mean(albedo)
     ini['radiation']['sfc_alb_dif'] = np.mean(albedo)
+    ini['radiation']['t_sfc'] = t_skin[0]
     ini['force']['fc'] = fc_cal.magnitude
     ini['boundary']['z0m'] = z0m[0]
     ini['boundary']['z0h'] = z0h[0]
@@ -523,7 +560,7 @@ def create_microhhforcing(dict):
 
     if use_htessel:
         
-        type_soil=3;
+        type_soil=2;
         root_frac = np.zeros(np.shape(h_soil))
         #root_frac = [0.244760790777786, 0.409283067913477, 0.307407403941806, 0.0385487373669315]
 
@@ -533,6 +570,9 @@ def create_microhhforcing(dict):
         elif dict['domain']=='SGP':
             a=5.558;
             b=2.614;
+        else:
+            a=4.453;
+            b=1.631;
         root_frac=1-0.5*(np.exp(-a*h_soil)+np.exp(-b*h_soil))
         for n in range(len(h_soil)-1,0,-1):
             root_frac[n]=root_frac[n]-(root_frac[n-1])
@@ -569,14 +609,39 @@ def create_microhhforcing(dict):
             ini['radiation']['emis_sfc'] = 0.97
             ini['land_surface']['rs_veg_min'] = 180
         elif dict['domain']=='SGP':
-            lai=high_veg_cover[0]*high_veg_lai[0]+low_veg_cover[0]*low_veg_lai[0]
-            ini['land_surface']['lai'] = lai
+            #lai=high_veg_cover[0]*high_veg_lai[0]+low_veg_cover[0]*low_veg_lai[0]
+            ini['land_surface']['lai'] = 3
             ini['land_surface']['gD'] = 0
             ini['land_surface']['lambda_stable'] = 10
             ini['land_surface']['lambda_unstable'] = 10
-            ini['land_surface']['c_veg'] = high_veg_cover[0]*0.6+low_veg_cover[0]*1
-
-    else:
+            ini['radiation']['emis_sfc'] = 0.95
+            ini['land_surface']['c_veg'] = 1
+            ini['land_surface']['rs_veg_min'] = 180
+            #ini['land_surface']['c_veg'] = high_veg_cover[0]*0.6+low_veg_cover[0]*1
+        elif dict['domain']=='CLE':
+            ini['land_surface']['gD'] = 0
+            ini['land_surface']['lai'] = high_veg_cover[0]*high_veg_lai[0]+low_veg_cover[0]*low_veg_lai[0]
+            ini['land_surface']['lambda_stable'] = 10
+            ini['land_surface']['lambda_unstable'] = 10
+            ini['radiation']['emis_sfc'] = 0.97
+            ini['land_surface']['c_veg'] = 1
+            ini['land_surface']['rs_veg_min'] = 180
+        elif dict['domain']=='IND':
+            ini['land_surface']['gD'] = 0
+            ini['land_surface']['lambda_stable'] = 10
+            ini['land_surface']['lambda_unstable'] = 10
+            ini['radiation']['emis_sfc'] = 0.97
+            ini['land_surface']['c_veg'] = 1
+            ini['land_surface']['rs_veg_min'] = 180
+        elif dict['domain']=='NY':
+            ini['land_surface']['gD'] = 0
+            ini['land_surface']['lai'] = high_veg_cover[0]*high_veg_lai[0]+low_veg_cover[0]*low_veg_lai[0]
+            ini['land_surface']['lambda_stable'] = 10
+            ini['land_surface']['lambda_unstable'] = 10
+            ini['radiation']['emis_sfc'] = 0.97
+            ini['land_surface']['c_veg'] = 1
+            ini['land_surface']['rs_veg_min'] = 180
+    elif ini['boundary']['sbcbot'] == 'flux':
         ini['boundary']['swboundary'] = 'surface'
         ini['boundary']['sbcbot'] = 'flux'
         ini['boundary']['swtimedep'] = True
@@ -585,7 +650,18 @@ def create_microhhforcing(dict):
         ini['boundary']['sbot[qt]'] = lh_flx[0]
         ini['boundary']['stop[qt]'] = 0
         ini['boundary']['stop[thl]'] = 0
-        
+
+    else:
+        ini['boundary']['swboundary'] = 'surface'
+        ini['boundary']['sbcbot'] = 'dirichlet'
+        ini['boundary']['swtimedep'] = True
+        ini['boundary']['timedeplist'] = ['thl_sbot','qt_sbot']
+        ini['boundary']['sbot[thl]'] = ths[0]
+        ini['boundary']['sbot[qt]'] = qt_bot[0]
+        ini['boundary']['stop[qt]'] = 0
+        ini['boundary']['stop[thl]'] = 0
+        nc_thl_sbot[:] = ths[:]
+        nc_qt_sbot[:] = qt_bot[:]    
     ini.save(basename+'.ini', allow_overwrite=True)
     nc_file.close()
 
@@ -649,6 +725,16 @@ def generate_forcing(cliargs):
         dict['end_date'] = datetime.strptime(dict['end_date'], '%Y-%m-%dT%H:%M')
     else:
         dict['end_date'] = dict['datetime_origin'] + dict['forward_duration']
+    
+    if 'fine_grid' not in cliargs.keys():
+        dict['fine_grid'] = False
+    else:
+        dict['fine_grid'] = cliargs['fine_grid']
+    
+    if 'z_top' in cliargs.keys():
+        dict['z_top'] = float(cliargs['z_top'])
+    else:
+        dict['z_top'] = 12000.
 
     create_domain(dict)
     download_domain(dict)
@@ -670,6 +756,8 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--domain', help='domain name')
     parser.add_argument('-s', '--start_date', help='start date')
     parser.add_argument('-e', '--end_date', help='end date')
+    parser.add_argument('-fg', '--fine_grid', help='use fine grid')
+    parser.add_argument('-zt', '--z_top', help='domain top')
 
     cliargs = vars(parser.parse_args())
     generate_forcing(cliargs)
