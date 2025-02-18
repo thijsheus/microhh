@@ -1,8 +1,9 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2020 Chiel van Heerwaarden
- * Copyright (c) 2011-2020 Thijs Heus
- * Copyright (c) 2014-2020 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
+ * Copyright (c) 2022-2022 Stijn Heldens
  *
  * This file is part of MicroHH
  *
@@ -153,29 +154,29 @@ void launch_grid_kernel(
     cuda_check_error();
 }
 
-template <typename F, typename TF, typename... Args>
-void launch_grid_kernel(
-        const Grid_data<TF> &gd,
-        Args&&... args
-)
-{
-    launch_grid_kernel<F>(
-            Grid_layout::from_grid_data(gd),
-            std::forward<Args>(args)...
-    );
-}
-
-template <typename F, typename TF, typename... Args>
-void launch_grid_kernel(
-        const Grid<TF> &grid,
-        Args&&... args
-)
-{
-    launch_grid_kernel<F>(
-            Grid_layout::from_grid_data(grid.get_grid_data()),
-            std::forward<Args>(args)...
-    );
-}
+//template <typename F, typename TF, typename... Args>
+//void launch_grid_kernel(
+//        const Grid_data<TF> &gd,
+//        Args&&... args
+//)
+//{
+//    launch_grid_kernel<F>(
+//            Grid_layout::from_grid_data(gd),
+//            std::forward<Args>(args)...
+//    );
+//}
+//
+//template <typename F, typename TF, typename... Args>
+//void launch_grid_kernel(
+//        const Grid<TF> &grid,
+//        Args&&... args
+//)
+//{
+//    launch_grid_kernel<F>(
+//            Grid_layout::from_grid_data(grid.get_grid_data()),
+//            std::forward<Args>(args)...
+//    );
+//}
 
 template <typename F, typename TF, typename... Args>
 void launch_grid_kernel(

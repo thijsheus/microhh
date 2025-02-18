@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -77,6 +77,10 @@ struct Grid_data
     int iend;    // Index of the last gridpoint+1 in the x-direction.
     int jend;    // Index of the last gridpoint+1 in the y-direction.
     int kend;    // Index of the last gridpoint+1 in the z-direction.
+
+    int istride; // 1D index stride in x-direction (==1).
+    int jstride; // 1D index stride in y-direction (==icells).
+    int kstride; // 1D index stride in z-direction (==ijcells).
 
     TF xsize; // Size of the domain in the x-direction.
     TF ysize; // Size of the domain in the y-direction.

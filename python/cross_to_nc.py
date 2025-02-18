@@ -1,8 +1,8 @@
 #
 #  MicroHH
-#  Copyright (c) 2011-2023 Chiel van Heerwaarden
-#  Copyright (c) 2011-2023 Thijs Heus
-#  Copyright (c) 2014-2023 Bart van Stratum
+#  Copyright (c) 2011-2024 Chiel van Heerwaarden
+#  Copyright (c) 2011-2024 Thijs Heus
+#  Copyright (c) 2014-2024 Bart van Stratum
 #
 #  This file is part of MicroHH
 #
@@ -175,6 +175,13 @@ parser.add_argument(
     help='do not compress the netcdf file',
     action='store_true')
 
+parser.add_argument(
+    '-o',
+    '--order',
+    help='order',
+    choices=[
+        2, 4], type = int)
+
 args = parser.parse_args()
 
 if args.directory is not None:
@@ -220,9 +227,13 @@ variables = [ variables ] if not isinstance(variables, list) else variables
 precision = args.precision
 nprocs = args.nprocs if args.nprocs is not None else len(variables)
 compression = not(args.nocompression)
-# End option parsing
+try:
+    order = args.order if args.order is not None else nl['grid']['swspatialorder']
+except KeyError:
+    order = 2
 
-grid = mht.Read_grid(itot, jtot, ktot)
+# End option parsing
+grid = mht.Read_grid(itot, jtot, ktot, order = order)
 
 chunks = [variables[i::nprocs] for i in range(nprocs)]
 

@@ -1,8 +1,8 @@
 #
 #  MicroHH
-#  Copyright (c) 2011-2023 Chiel van Heerwaarden
-#  Copyright (c) 2011-2023 Thijs Heus
-#  Copyright (c) 2014-2023 Bart van Stratum
+#  Copyright (c) 2011-2024 Chiel van Heerwaarden
+#  Copyright (c) 2011-2024 Thijs Heus
+#  Copyright (c) 2014-2024 Bart van Stratum
 #
 #  This file is part of MicroHH
 #
@@ -58,9 +58,9 @@ def _convert_value(value):
     """ Helper function: convert namelist value or list """
     if ',' in value:
         value = value.split(',')
-        return [_int_or_float_or_str(val) for val in value]
+        return [_int_or_float_or_str(val.strip()) for val in value]
     else:
-        return _int_or_float_or_str(value)
+        return _int_or_float_or_str(value.strip())
 
 
 def _find_namelist_file():
@@ -104,7 +104,7 @@ class Read_namelist:
                         curr_group_name = lstrip[1:-1]
                         self.groups[curr_group_name] = {}
                     elif ("=" in line):
-                        var_name = lstrip.split('=')[0]
+                        var_name = lstrip.split('=')[0].strip()
                         value    = lstrip.split('=')[1]
 
                         if ducktype:
@@ -152,7 +152,9 @@ class Read_namelist:
                 f.write('[{}]\n'.format(group))
                 for variable, value in self.groups[group].items():
                     if isinstance(value, list):
-                        value = ','.join(str(n) for n in value)
+                        if not isinstance(value[0], str):
+                            value = [str(v) for v in value]
+                        value = ','.join(value)
                     elif isinstance(value, bool):
                         value = '1' if value else '0'
                     f.write('{}={}\n'.format(variable, value))
@@ -246,7 +248,7 @@ class Read_grid:
     """ Read the grid file from MicroHH.
         If no file name is provided, grid.0000000 from the current directory is read """
 
-    def __init__(self, itot, jtot, ktot, filename=None):
+    def __init__(self, itot, jtot, ktot, order = 2, filename=None):
         self.en = '<' if sys.byteorder == 'little' else '>'
         filename = 'grid.0000000' if filename is None else filename
         self.TF = round(os.path.getsize(filename) /
@@ -268,8 +270,12 @@ class Read_grid:
         self.dim['yh'] = self.read(jtot)
         self.dim['z'] = self.read(ktot)
         self.dim['zh'][:-1] = self.read(ktot)
-
-        self.dim['zh'][-1] = self.dim['z'][-1] + 2*(self.dim['z'][-1] - self.dim['zh'][-2])
+        if order == 2:
+            self.dim['zh'][-1] = 2 * self.dim['z'][-1]  - self.dim['zh'][-2]
+        elif order == 4:
+            self.dim['zh'][-1] = 3./8. * (self.dim['z'][-1] + 2 * self.dim['z'][-2] - 1./3. * self.dim['z'][-3])
+        else:
+            raise ValueError('Order {} is not supported'.format(order))
 
         self.fin.close()
         del self.fin
@@ -488,6 +494,7 @@ def restart_pre(origin, timestr):
     fnames = glob.glob('../' + origin + '/*_input.nc')
     fnames += glob.glob('../' + origin + '/grid.0000000')
     fnames += glob.glob('../' + origin + '/fftwplan.0000000')
+    fnames += glob.glob('../' + origin + '/thermo_basestate.0000000')
     fnames += glob.glob('../' + origin + '/*.' + timestr)
     for file in fnames:
         shutil.copy(file, '.')
@@ -576,6 +583,8 @@ def execute(command):
         raise Exception(
             '\'{}\' returned \'{}\'.'.format(
                 command, sp.returncode))
+
+    return sp.returncode
 
 
 def run_cases(cases, executable, mode, outputfile=''):
@@ -998,46 +1007,54 @@ def run_restart(
             return 1
     return 0
 
+
 def copy_or_link(src, dst, link = False):
     if os.path.exists(dst):
-        os.remove(dst)
+        if os.path.isfile(dst):
+            os.remove(dst)
     if link:
         os.symlink(src, dst)
-        print("Linking ",end="")
     else:
         shutil.copy(src, dst)
-        print("Copying ",end="")
-    print(src," to ",dst)
+
 
 def copy_radfiles(srcdir = None, destdir = None, gpt = '128_112', link = False):
     if srcdir is None:
-        srcdir = os.path.dirname(inspect.getabsfile(inspect.currentframe()))+'/../rte-rrtmgp-cpp/rrtmgp-data/' 
+        srcdir = os.path.dirname(inspect.getabsfile(inspect.currentframe()))+'/../rte-rrtmgp-cpp/rrtmgp-data/'
     if destdir is None:
         destdir = os.getcwd()
+
     if gpt == '128_112':
-        copy_or_link(srcdir + 'rrtmgp-gas-lw-g128.nc', destdir + '/coefficients_lw.nc', link = link)
-        copy_or_link(srcdir + 'rrtmgp-gas-sw-g112.nc', destdir + '/coefficients_sw.nc', link = link)
+        copy_or_link(os.path.join(srcdir, 'rrtmgp-gas-lw-g128.nc'), os.path.join(destdir, 'coefficients_lw.nc'), link = link)
+        copy_or_link(os.path.join(srcdir, 'rrtmgp-gas-sw-g112.nc'), os.path.join(destdir, 'coefficients_sw.nc'), link = link)
     elif gpt == '256_224':
-        copy_or_link(srcdir + 'rrtmgp-gas-lw-g256.nc', destdir + '/coefficients_lw.nc', link = link)
-        copy_or_link(srcdir + 'rrtmgp-gas-sw-g224.nc', destdir + '/coefficients_sw.nc', link = link)
+        copy_or_link(os.path.join(srcdir, 'rrtmgp-gas-lw-g256.nc'), os.path.join(destdir, 'coefficients_lw.nc'), link = link)
+        copy_or_link(os.path.join(srcdir, 'rrtmgp-gas-sw-g224.nc'), os.path.join(destdir, 'coefficients_sw.nc'), link = link)
     else:
         raise ValueError('gpt should be in {\'128_112\', \'256_224\'}')
 
-    copy_or_link(srcdir + 'rrtmgp-clouds-lw.nc', destdir + '/cloud_coefficients_lw.nc', link = link)
-    copy_or_link(srcdir + 'rrtmgp-clouds-sw.nc', destdir + '/cloud_coefficients_sw.nc', link = link)
+    copy_or_link(os.path.join(srcdir, 'rrtmgp-clouds-lw.nc'), os.path.join(destdir, 'cloud_coefficients_lw.nc'), link = link)
+    copy_or_link(os.path.join(srcdir, 'rrtmgp-clouds-sw.nc'), os.path.join(destdir, 'cloud_coefficients_sw.nc'), link = link)
+
 
 def copy_aerosolfiles(srcdir = None, destdir = None, link = False):
     if srcdir is None:
-        srcdir = os.path.dirname(inspect.getabsfile(inspect.currentframe())) + '/../rte-rrtmgp-cpp/data/' 
+        srcdir = os.path.dirname(inspect.getabsfile(inspect.currentframe())) + '/../rte-rrtmgp-cpp/data/'
     if destdir is None:
         destdir = os.getcwd()
 
-    copy_or_link(srcdir + 'aerosol_optics.nc', destdir + 'aerosol_optics.nc', link = link)
+    copy_or_link(os.path.join(srcdir, 'aerosol_optics.nc'), os.path.join(destdir, 'aerosol_optics.nc'), link = link)
+
 
 def copy_lsmfiles(srcdir = None, destdir = None, link = False):
     if srcdir is None:
         srcdir = os.path.dirname(inspect.getabsfile(inspect.currentframe()))+'/../misc/'
     if destdir is None:
         destdir = os.getcwd()
+<<<<<<< HEAD
     copy_or_link(srcdir + 'van_genuchten_parameters.nc', destdir + 'van_genuchten_parameters.nc', link = link)
-    
+=======
+
+    copy_or_link(os.path.join(srcdir, 'van_genuchten_parameters.nc'), destdir, link = link)
+>>>>>>> main_upstream
+

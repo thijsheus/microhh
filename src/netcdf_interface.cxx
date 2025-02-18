@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -515,6 +515,25 @@ std::map<std::string, int> Netcdf_handle::get_variable_dimensions(const std::str
     }
 
     return dims;
+}
+
+bool Netcdf_handle::dimension_exists(const std::string& name)
+{
+    int nc_check_code = 0;
+    int dim_id;
+
+    try
+    {
+        if (master.get_mpiid() == mpiid_to_write)
+            nc_check_code = nc_inq_dimid(ncid, name.c_str(), &dim_id);
+        nc_check(master, nc_check_code, mpiid_to_write);
+    }
+    catch (std::runtime_error& e)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 bool Netcdf_handle::variable_exists(const std::string& name)

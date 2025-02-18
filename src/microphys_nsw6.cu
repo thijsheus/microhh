@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -358,9 +358,16 @@ namespace
                 // Tomita Eq. 54
                 const TF beta_2 = fmin( beta_gaut<TF>, beta_gaut<TF>*exp(gamma_gaut<TF> * (T - T0<TF>)) );
 
-                // Tomita Eq. 50. Our Nc0 is SI units, so conversion is applied.
-                TF P_raut = !(has_liq) ? TF(0.) :
-                    TF(16.7)/rho[k] * pow2(rho[k]*ql[ijk]) / (TF(5.) + TF(3.66e-2) * TF(1.e-6)*Nc0 / (D_d*rho[k]*ql[ijk]));
+//                // Tomita Eq. 50. Our Nc0 is SI units, so conversion is applied.
+//                TF P_raut = !(has_liq) ? TF(0.) :
+//                    TF(16.7)/rho[k] * pow2(rho[k]*ql[ijk]) / (TF(5.) + TF(3.66e-2) * TF(1.e-6)*Nc0 / (D_d*rho[k]*ql[ijk]));
+
+                // Kharoutdinov and Kogan autoconversion.
+                TF P_raut = (has_liq) ?
+                            TF(1350.)
+                            * std::pow(ql[ijk], TF(2.47))
+                            * std::pow(Nc0 * TF(1.e-6), TF(-1.79))
+                                      : TF(0.);
 
                 // Tomita Eq. 52
                 TF P_saut = !(has_ice) ? TF(0.) :
