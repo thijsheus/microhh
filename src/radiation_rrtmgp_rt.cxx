@@ -602,10 +602,9 @@ void Radiation_rrtmgp_rt<TF>::init(Timeloop<TF>& timeloop)
 
     idt_rad = convert_to_itime(dt_rad);
 
-        // Check if restarttime is dividable by dt_rad
-        if (timeloop.get_isavetime() % idt_rad != 0)
-            throw std::runtime_error("Restart \"savetime\" is not an (integer) multiple of \"dt_rad\"");
-    }
+    // Check if restarttime is dividable by dt_rad
+    if (timeloop.get_isavetime() % idt_rad != 0)
+        throw std::runtime_error("Restart \"savetime\" is not an (integer) multiple of \"dt_rad\"");
 
     // Resize surface radiation fields
     lw_flux_dn_sfc.resize(gd.ijcells);

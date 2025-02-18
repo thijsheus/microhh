@@ -785,9 +785,6 @@ template<typename TF>
 void Radiation_rrtmgp<TF>::init(Timeloop<TF>& timeloop)
 {
     auto& gd = grid.get_grid_data();
-    if (dt_rad > 0)
-    {
-        idt_rad = static_cast<unsigned long>(timeloop.get_ifactor() * dt_rad + 0.5);
 
     idt_rad = convert_to_itime(dt_rad);
 
