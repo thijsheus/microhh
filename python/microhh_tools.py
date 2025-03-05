@@ -910,7 +910,7 @@ class Case:
 def run_case(
         case_name, options_in, options_mpi_in,
         executable='microhh', mode='cpu',
-        case_dir='.', experiment='local'):
+        case_dir='.', experiment='local', pre={}):
 
     options = deepcopy(options_in)
 
@@ -922,7 +922,8 @@ def run_case(
             case_name,
             casedir=case_dir,
             rundir=experiment,
-            options=options)]
+            options=options,
+            pre=pre)]
 
     run_cases(
         cases,
@@ -1051,10 +1052,6 @@ def copy_lsmfiles(srcdir = None, destdir = None, link = False):
         srcdir = os.path.dirname(inspect.getabsfile(inspect.currentframe()))+'/../misc/'
     if destdir is None:
         destdir = os.getcwd()
-<<<<<<< HEAD
-    copy_or_link(srcdir + 'van_genuchten_parameters.nc', destdir + 'van_genuchten_parameters.nc', link = link)
-=======
 
     copy_or_link(os.path.join(srcdir, 'van_genuchten_parameters.nc'), destdir, link = link)
->>>>>>> main_upstream
 
