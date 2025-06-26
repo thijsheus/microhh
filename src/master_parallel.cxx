@@ -109,7 +109,15 @@ void Master::init(Input& input)
     if (md.nprocs != md.npx*md.npy)
     {
         std::string msg = "nprocs = " + std::to_string(md.nprocs) + " does not equal npx*npy = " + std::to_string(md.npx) + "*" + std::to_string(md.npy);
+        #ifdef USECUDA
+        md.npx = 1;
+        md.npy = md.nprocs;
+        print_message("Warning: %s\n", msg.c_str());
+        print_message("Using instead npx = %d and npy = %d, but nprocs = %d\n", md.npx, md.npy, md.nprocs);
+        #else
         throw std::runtime_error(msg);
+        #endif
+
     }
 
     int n;
