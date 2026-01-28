@@ -38,9 +38,12 @@
 class Master;
 class Input;
 class Netcdf_handle;
+#include "timedep.h"
 
 template<typename> class Grid;
 template<typename> class Stats;
+template<typename> class Timedep;
+
 template<typename> class Dump;
 template<typename> class Diff;
 template<typename> class Cross;
@@ -166,6 +169,7 @@ class Microphys_2mom_warm : public Microphys<TF>
         bool has_mask(std::string);
 
         void get_surface_rain_rate(std::vector<TF>&);
+        void update_time_dependent(Timeloop<TF>&); ///< Update the time dependent parameters.
 
         TF get_Nc0() { return this->Nc0; }
         TF get_Ni0() { return static_cast<TF>(1e5); } // CvH: this is a temporary fix with previous default value, Ni0 is 3D in tomita!
@@ -193,6 +197,8 @@ class Microphys_2mom_warm : public Microphys<TF>
         std::vector<std::string> available_masks = {"qr"};   // Vector with the masks that fields can provide
 
         TF Nc0; // Cloud droplet number concentration.
+        bool swtimedep;
+        std::unique_ptr<Timedep<TF>> tdep_nc0;
 
         // Surface precipitation statistics
         std::vector<TF> rr_bot;   // 2D surface sedimentation flux (kg m-2 s-1 == mm s-1)

@@ -360,6 +360,7 @@ void Model<TF>::exec()
                 radiation ->update_time_dependent(*timeloop);
                 aerosol   ->update_time_dependent(*timeloop);
                 background->update_time_dependent(*timeloop);
+                microphys ->update_time_dependent(*timeloop);
 
                 // Set the cyclic BCs of the prognostic 3D fields.
                 boundary->set_prognostic_cyclic_bcs();

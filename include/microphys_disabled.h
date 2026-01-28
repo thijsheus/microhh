@@ -29,9 +29,11 @@
 class Master;
 class Input;
 class Netcdf_handle;
+#include "timedep.h"
 
 template<typename> class Grid;
 template<typename> class Stats;
+template<typename> class Timedep;
 template<typename> class Diff;
 template<typename> class Dump;
 template<typename> class Cross;
@@ -59,6 +61,7 @@ class Microphys_disabled : public Microphys<TF>
         void get_surface_rain_rate(std::vector<TF>&);
 
         unsigned long get_time_limit(unsigned long, double);
+        void update_time_dependent(Timeloop<TF>&) {}; ///< Update the time dependent parameters.
 
         TF get_Nc0();
         TF get_Ni0();

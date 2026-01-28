@@ -28,6 +28,7 @@
 #include "master.h"
 #include "grid.h"
 #include "fields.h"
+#include "timedep.h"
 #include "diff.h"
 #include "stats.h"
 #include "cross.h"
@@ -544,12 +545,15 @@ Microphys_2mom_warm<TF>::Microphys_2mom_warm(Master& masterin, Grid<TF>& gridin,
     Microphys<TF>(masterin, gridin, fieldsin, inputin)
 {
     auto& gd = grid.get_grid_data();
+
     swmicrophys = Microphys_type::Warm_2mom;
 
     // Read microphysics switches and settings
     swmicrobudget = inputin.get_item<bool>("micro", "swmicrobudget", "", false);
     cflmax = inputin.get_item<TF>("micro", "cflmax", "", 2.);
     Nc0 = inputin.get_item<TF>("micro", "Nc0", "");
+    swtimedep = inputin.get_item<bool>("micro", "swtimedep", "", false);
+
 
     // Initialize the qr (rain water specific humidity) and nr (droplot number concentration) fields
     const std::string group_name = "thermo";
@@ -561,6 +565,7 @@ Microphys_2mom_warm<TF>::Microphys_2mom_warm(Master& masterin, Grid<TF>& gridin,
     fields.sp.at("qr")->visc = inputin.get_item<TF>("fields", "svisc", "qr");
     fields.sp.at("nr")->visc = inputin.get_item<TF>("fields", "svisc", "nr");
 }
+
 
 template<typename TF>
 Microphys_2mom_warm<TF>::~Microphys_2mom_warm()
@@ -582,6 +587,11 @@ void Microphys_2mom_warm<TF>::create(
 {
     const std::string group_name = "thermo";
 
+    if (inputin.get_item<bool>("micro", "swtimedep", "", false))
+    {
+        std::string timedep_dim = "time_micro";
+        tdep_nc0->create_timedep(input_nc, timedep_dim);
+    }
     // BvS: for now I have left the init of statistics and cross-sections here
     // If this gets out of hand, move initialisation to separate function like in e.g. thermo_moist
 
@@ -1023,6 +1033,11 @@ void Microphys_2mom_warm<TF>::get_surface_rain_rate(std::vector<TF>& field)
     field = rr_bot;
 }
 
+template <typename TF>
+void Microphys_2mom_warm<TF>::update_time_dependent(Timeloop<TF>& timeloop)
+{
+    // tdep_nc0->update_time_dependent(Nc0, timeloop.get_time());
+}
 
 #ifdef FLOAT_SINGLE
 template class Microphys_2mom_warm<float>;

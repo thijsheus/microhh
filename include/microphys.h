@@ -26,9 +26,12 @@
 class Master;
 class Input;
 class Netcdf_handle;
+#include "timedep.h"
 
 template<typename> class Grid;
 template<typename> class Stats;
+template<typename> class Timedep;
+
 template<typename> class Diff;
 template<typename> class Dump;
 template<typename> class Cross;
@@ -56,6 +59,7 @@ class Microphys
         virtual void init() = 0;
         virtual void create(Input&, Netcdf_handle&, Stats<TF>&, Cross<TF>&, Dump<TF>&, Column<TF>&) = 0;
         virtual unsigned long get_time_limit(unsigned long, double) = 0;
+        virtual void update_time_dependent(Timeloop<TF>&) = 0; ///< Update the time dependent parameters.
 
         virtual void exec(Thermo<TF>&, const double, Stats<TF>&) = 0;
         virtual void exec_stats(Stats<TF>&, Thermo<TF>&, const double) = 0; ///< Calculate the statistics
