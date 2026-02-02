@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -31,6 +31,7 @@
 #include "microphys.h"
 #include "microphys_disabled.h"
 #include "microphys_2mom_warm.h"
+#include "microphys_2mom_cld_warm.h"
 #include "microphys_nsw6.h"
 
 template<typename TF>
@@ -59,6 +60,8 @@ std::shared_ptr<Microphys<TF>> Microphys<TF>::factory(Master& masterin, Grid<TF>
         return std::make_shared<Microphys_disabled<TF>>(masterin, gridin, fieldsin, inputin);
     else if (swmicro == "2mom_warm")
         return std::make_shared<Microphys_2mom_warm<TF>>(masterin, gridin, fieldsin, inputin);
+    else if (swmicro == "2mom_cld_warm")
+        return std::make_shared<Microphys_2mom_cld_warm<TF>>(masterin, gridin, fieldsin, inputin);
     else if (swmicro == "nsw6")
         return std::make_shared<Microphys_nsw6<TF>>(masterin, gridin, fieldsin, inputin);
     else

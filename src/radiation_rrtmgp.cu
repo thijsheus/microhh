@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -220,7 +220,7 @@ namespace
         dim3 grid_gpu(grid_col);
         dim3 block_gpu(block_col);
 
-        sum_tau_kernel<<<grid_gpu, block_gpu>>>(ncol, nlev, col_s_in, tau, ibnd, aod);
+        sum_tau_kernel<<<grid_gpu, block_gpu>>>(ncol, nlev, col_s_in, tau, ibnd-1, aod);
     }
 
     std::vector<std::string> get_variable_string(
@@ -877,7 +877,7 @@ template<typename TF>
 void Radiation_rrtmgp<TF>::exec_shortwave(
         Thermo<TF>& thermo, Microphys<TF>& microphys, Timeloop<TF>& timeloop, Stats<TF>& stats,
         Array_gpu<Float,2>& flux_up, Array_gpu<Float,2>& flux_dn, Array_gpu<Float,2>& flux_dn_dir, Array_gpu<Float,2>& flux_net,
-        Array<Float, 1>&aod550,
+        Array<Float, 1>& aod550,
         const Array_gpu<Float,2>& t_lay, const Array_gpu<Float,2>& t_lev,
         const Array_gpu<Float,2>& h2o, const Array_gpu<Float,2>& rh,
         const Array_gpu<Float,2>& clwp, const Array_gpu<Float,2>& ciwp,
@@ -1028,8 +1028,9 @@ void Radiation_rrtmgp<TF>::exec_shortwave(
                     dynamic_cast<Optical_props_2str_gpu&>(*optical_props_subset_in),
                     dynamic_cast<Optical_props_2str_gpu&>(*aerosol_optical_props_subset_in));
 
-            if (do_radiation_stats)
-            sum_tau(n_col_in, n_lay, col_s_in, aerosol_optical_props_subset_in->get_tau().ptr(), ibnd_550-1, aod550_g);
+            // calculate aerosol optical depth when calculating radiation for the whole domain (not for individual column stats)
+            if (do_radiation_stats && aod550.size()!=0)
+                sum_tau(n_col_in, n_lay, col_s_in, aerosol_optical_props_subset_in->get_tau().ptr(), ibnd_550, aod550_g);
 
         }
 
@@ -1057,7 +1058,8 @@ void Radiation_rrtmgp<TF>::exec_shortwave(
                 fluxes.get_flux_up().ptr(), fluxes.get_flux_dn().ptr(), fluxes.get_flux_dn_dir().ptr(), fluxes.get_flux_net().ptr());
     };
 
-    if (sw_aerosol && do_radiation_stats)
+    // write aerosol optical depth when calculating radiation for the whole domain (not for individual column stats)
+    if (sw_aerosol && do_radiation_stats && aod550.size() != 0)
     {
         const int nmemsize = gd.imax*gd.jmax * sizeof(TF);
         cuda_safe_call(cudaMemcpy(aod550.ptr(), aod550_g, nmemsize, cudaMemcpyDeviceToHost));
@@ -1090,7 +1092,6 @@ void Radiation_rrtmgp<TF>::exec_shortwave(
                 sw_flux_dn_dif_inc_subset,
                 *fluxes_subset,
                 *bnd_fluxes_subset);
-
     }
 
     if (n_col_block_residual > 0)
@@ -1196,30 +1197,28 @@ void Radiation_rrtmgp<TF>::exec(
         const bool compute_clouds = true;
 
         // get aerosol mixing ratios
-        if (sw_aerosol && sw_aerosol_timedep)
-        {
+        if (sw_aerosol && swtimedep_aerosol)
             aerosol.get_radiation_fields(aerosol_concs_gpu);
-        }
 
         try
         {
-            if (sw_update_background)
+            if (swtimedep_background)
             {
                 // Temperature, pressure and moisture
                 background.get_tpm(t_lay_col, t_lev_col, p_lay_col, p_lev_col, gas_concs_col);
                 Gas_optics_rrtmgp::get_col_dry(col_dry, gas_concs_col.get_vmr("h2o"), p_lev_col);
+
                 // gasses
                 background.get_gasses(gas_concs_col);
+
                 // aerosols
-                if (sw_aerosol && sw_aerosol_timedep)
-                {
+                if (sw_aerosol && swtimedep_aerosol)
                     background.get_aerosols(aerosol_concs_col);
-                }
             }
 
             if (sw_longwave)
             {
-                if (sw_update_background)
+                if (swtimedep_background || swtimedep_basestate)
                 {
                     // Calculate new background column (on the CPU).
                     Float* ph_g = thermo.get_basestate_fld_g("prefh");
@@ -1345,7 +1344,7 @@ void Radiation_rrtmgp<TF>::exec(
                     set_sun_location(timeloop);
                 }
 
-                if (!sw_fixed_sza || sw_update_background)
+                if (!sw_fixed_sza || swtimedep_background)
                 {
 
                     if (is_day(this->mu0) || !sw_is_tuned)
@@ -1556,6 +1555,12 @@ std::vector<TF>& Radiation_rrtmgp<TF>::get_surface_radiation(const std::string& 
 template <typename TF>
 TF* Radiation_rrtmgp<TF>::get_surface_radiation_g(const std::string& name)
 {
+    // Check if short/longwave is active, otherwise the fields below are not allocated.
+    if ((name == "sw_down" || name == "sw_up") && !sw_shortwave)
+        throw std::runtime_error("get_surface_radiation_g() requires swshortwave=true & swlongwave=true.");
+    else if ((name == "lw_down" || name == "lw_up") && !sw_longwave)
+        throw std::runtime_error("get_surface_radiation_g() requires swshortwave=true & swlongwave=true.");
+
     if (name == "sw_down")
         return sw_flux_dn_sfc_g;
     else if (name == "sw_up")
@@ -1652,7 +1657,7 @@ void Radiation_rrtmgp<TF>::exec_individual_column_stats(
         }
     };
 
-    if (sw_update_background)
+    if (swtimedep_background)
     {
         // Temperature and pressure
         background.get_tpm(t_lay_col, t_lev_col, p_lay_col, p_lev_col,  gas_concs_col);
@@ -1660,15 +1665,13 @@ void Radiation_rrtmgp<TF>::exec_individual_column_stats(
         // gasses
         background.get_gasses(gas_concs_col);
         // aerosols
-        if (sw_aerosol && sw_aerosol_timedep)
-        {
+        if (sw_aerosol && swtimedep_aerosol)
             background.get_aerosols(aerosol_concs_col);
-        }
     }
 
     if (sw_longwave)
     {
-        if (sw_update_background)
+        if (swtimedep_background)
         {
             // Calculate new background column (on the CPU).
             Float* ph_g = thermo.get_basestate_fld_g("prefh");
@@ -1710,7 +1713,6 @@ void Radiation_rrtmgp<TF>::exec_individual_column_stats(
     {
         Array_gpu<Float,2> flux_dn_dir({n_stat_col, gd.ktot+1});
         Array<Float,1> aod550_column_stats;
-        aod550_column_stats.set_dims({n_col});
 
         // Single column solve of background profile for TOA conditions
         if (!sw_fixed_sza)
@@ -1718,7 +1720,7 @@ void Radiation_rrtmgp<TF>::exec_individual_column_stats(
             // Update the solar zenith angle and sun-earth distance.
             set_sun_location(timeloop);
         }
-        if (!sw_fixed_sza || sw_update_background)
+        if (!sw_fixed_sza || swtimedep_background)
         {
             if (is_day(this->mu0))
             {

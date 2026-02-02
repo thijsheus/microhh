@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -29,9 +29,11 @@
 class Master;
 class Input;
 class Netcdf_handle;
+#include "timedep.h"
 
 template<typename> class Grid;
 template<typename> class Stats;
+template<typename> class Timedep;
 template<typename> class Diff;
 template<typename> class Dump;
 template<typename> class Cross;
@@ -57,7 +59,9 @@ class Microphys_disabled : public Microphys<TF>
         bool has_mask(std::string) {return false;};
 
         void get_surface_rain_rate(std::vector<TF>&);
+
         unsigned long get_time_limit(unsigned long, double);
+        void update_time_dependent(Timeloop<TF>&) {}; ///< Update the time dependent parameters.
 
         TF get_Nc0();
         TF get_Ni0();

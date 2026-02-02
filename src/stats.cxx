@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -287,11 +287,18 @@ namespace
         }
     }
 
+
     template<typename TF>
     void calc_mean_2d(
-            TF& out, const TF* const restrict fld,
-            const int istart, const int iend, const int jstart, const int jend,
-            const int icells, const int itot, const int jtot)
+            TF& out,
+            const TF* const restrict fld,
+            const unsigned int* const mask_bot,
+            const int nmask_bot,
+            const int flag,
+            const int istart, const int iend,
+            const int jstart, const int jend,
+            const int icells,
+            const int itot, const int jtot)
     {
         double tmp = 0.;
 
@@ -300,17 +307,19 @@ namespace
             for (int i=istart; i<iend; ++i)
             {
                 const int ij  = i + j*icells;
-                tmp += fld[ij];
+                tmp += in_mask<double>(mask_bot[ij], flag) * fld[ij];
             }
 
-        out = tmp / (itot*jtot);
+        out = tmp / nmask_bot;
     }
 
 
     template<typename TF>
     void calc_mean_projected_mask(
-            TF* const restrict prof, const TF* const restrict fld,
-            const unsigned int* const mask_bot, const int nmask_bot,
+            TF* const restrict prof,
+            const TF* const restrict fld,
+            const unsigned int* const mask_bot,
+            const int nmask_bot,
             const int flag,
             const int istart, const int iend,
             const int jstart, const int jend,
@@ -584,7 +593,7 @@ Stats<TF>::~Stats()
 }
 
 template<typename TF>
-void Stats<TF>::init(double ifactor)
+void Stats<TF>::init()
 {
     if (!swstats)
         return;
@@ -593,7 +602,7 @@ void Stats<TF>::init(double ifactor)
 
     boundary_cyclic.init();
 
-    isampletime = static_cast<unsigned long>(ifactor * sampletime);
+    isampletime = convert_to_itime(sampletime);
     statistics_counter = 0;
 
     // Vectors which hold the amount of grid points sampled on each model level.
@@ -735,9 +744,6 @@ void Stats<TF>::exec(const int iteration, const double time, const unsigned long
 
     auto& agd = grid.get_grid_data();
     auto& sgd = soil_grid.get_grid_data();
-
-    // Write message in case stats is triggered.
-    master.print_message("Saving statistics for time %f\n", time);
 
     // Finalize the total tendencies
     if (do_tendency())
@@ -1070,7 +1076,7 @@ void Stats<TF>::add_prof(
         throw std::runtime_error("Variable " + name + " is added twice in add_prof_series()");
 
     Level_type level;
-    if ((zloc == "z") || (zloc == "zs") || (zloc == "era_levels"))
+    if ((zloc == "z") || (zloc == "zs") || (zloc == "lay"))
         level = Level_type::Full;
     else
         level = Level_type::Half;
@@ -1104,10 +1110,19 @@ void Stats<TF>::add_prof(
             m.soil_profs.at(name).ncvar.add_attribute("units", unit);
             m.soil_profs.at(name).ncvar.add_attribute("long_name", longname);
         }
-        else if ((zloc == "era_levels") || (zloc == "era_layers"))
+        else if (zloc == "lev")
         {
-            const TF n_era_levels = background.get_n_era_levels();
-            Prof_var<TF> tmp{handle.add_variable<TF>(name, {"time", zloc}), std::vector<TF>(n_era_levels), level};
+            const TF n_lev = background.get_n_lev();
+            Prof_var<TF> tmp{handle.add_variable<TF>(name, {"time", zloc}), std::vector<TF>(n_lev), level};
+
+            m.background_profs.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(std::move(tmp)));
+            m.background_profs.at(name).ncvar.add_attribute("units", unit);
+            m.background_profs.at(name).ncvar.add_attribute("long_name", longname);
+        }
+        else if (zloc == "lay")
+        {
+            const TF n_lay = background.get_n_lay();
+            Prof_var<TF> tmp{handle.add_variable<TF>(name, {"time", zloc}), std::vector<TF>(n_lay), level};
 
             m.background_profs.emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(std::move(tmp)));
             m.background_profs.at(name).ncvar.add_attribute("units", unit);
@@ -1121,7 +1136,7 @@ void Stats<TF>::add_prof(
         varlist.push_back(name);
     else if (zloc == "zs")
         varlist_soil.push_back(name);
-    else if ((zloc == "era_levels") || (zloc == "era_layers"))
+    else if ((zloc == "lev") || (zloc == "lay"))
         varlist_background.push_back(name);
 }
 
@@ -1315,15 +1330,28 @@ void Stats<TF>::set_mask_thres(
 
     if (mode == Stats_mask_type::Plus)
         calc_mask_thres<TF, Stats_mask_type::Plus>(
-                mfield.data(), mfield_bot.data(), flag, flagh,
-                fld.fld.data(), fldh.fld.data(), fldh.fld_bot.data(), threshold,
+                mfield.data(),
+                mfield_bot.data(),
+                flag,
+                flagh,
+                fld.fld.data(),
+                fldh.fld.data(),
+                fldh.fld_bot.data(),
+                threshold,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells, gd.kcells);
+
     else if (mode == Stats_mask_type::Min)
         calc_mask_thres<TF, Stats_mask_type::Min>(
-                mfield.data(), mfield_bot.data(), flag, flagh,
-                fld.fld.data(), fldh.fld.data(), fldh.fld_bot.data(), threshold,
+                mfield.data(),
+                mfield_bot.data(),
+                flag,
+                flagh,
+                fld.fld.data(),
+                fldh.fld.data(),
+                fldh.fld_bot.data(),
+                threshold,
                 gd.istart, gd.jstart, gd.kstart,
                 gd.iend,   gd.jend,   gd.kend,
                 gd.icells, gd.ijcells, gd.kcells);
@@ -1530,72 +1558,19 @@ void Stats<TF>::calc_stats_w(
     if (std::find(varlist.begin(), varlist.end(), name) != varlist.end())
     {
         auto advec_flux = fields.get_tmp();
-        auto fld_prime = fields.get_tmp();
-        auto w_prime = fields.get_tmp();
+        advec.get_advec_flux(*advec_flux, fld);
+
         for (auto& m : masks)
         {
             set_flag(flag, nmask, m.second, fld.loc[2]);
 
             calc_mean(
-                    fld_prime->fld_mean.data(),
-                    fld.fld.data(),
-                    mfield.data(),
-                    flag, nmask,
-                    gd.istart, gd.iend,
-                    gd.jstart, gd.jend,
-                    gd.kstart-1, gd.kend+1,
-                    gd.icells, gd.ijcells);
-            master.sum(fld_prime->fld_mean.data(), gd.kcells);
-
-            subtract_mean(
-                    fld_prime->fld.data(),
-                    fld.fld.data(),
-                    fld_prime->fld_mean.data(),
-                    gd.istart, gd.iend,
-                    gd.jstart, gd.jend,
-                    gd.kstart-1, gd.kend+1,
-                    gd.icells, gd.ijcells);
-
-
-            // Set flag for `w` level
-            const int w_loc = 1;
-            set_flag(flag, nmask, m.second, w_loc);
-
-            // Calculate w_mean and w_prime over the mask at half level.
-            calc_mean(
-                    w_prime->fld_mean.data(),
-                    fields.mp.at("w")->fld.data(),
-                    mfield.data(), flag, nmask,
-                    gd.istart, gd.iend,
-                    gd.jstart, gd.jend,
-                    gd.kstart, gd.kend + w_loc,
-                    gd.icells, gd.ijcells);
-
-            master.sum(w_prime->fld_mean.data(), gd.kcells);
-
-            subtract_mean(
-                    w_prime->fld.data(),
-                    fields.mp.at("w")->fld.data(),
-                    w_prime->fld_mean.data(),
-                    gd.istart, gd.iend,
-                    gd.jstart, gd.jend,
-                    gd.kstart, gd.kend + w_loc,
-                    gd.icells, gd.ijcells);
-
-            fld_prime->loc = fld.loc;
-            advec.get_advec_flux(*advec_flux, *fld_prime, *w_prime);
-
-            // Switch flag to flux location of `fld`.
-            // set_flag(flag, nmask, m.second, !fld.loc[2]);
-
-            calc_mean(
                     m.second.profs.at(name).data.data(),
-                    // fld_prime->fld.data(),
                     advec_flux->fld.data(),
                     mfield.data(), flag, nmask,
                     gd.istart, gd.iend,
                     gd.jstart, gd.jend,
-                    gd.kstart, gd.kend + w_loc,
+                    0, gd.kcells,
                     gd.icells, gd.ijcells);
 
             master.sum(m.second.profs.at(name).data.data(), gd.kcells);
@@ -1603,8 +1578,6 @@ void Stats<TF>::calc_stats_w(
         }
 
         fields.release_tmp(advec_flux);
-        fields.release_tmp(fld_prime);
-        fields.release_tmp(w_prime);
     }
 }
 
@@ -1864,7 +1837,9 @@ void Stats<TF>::calc_tend(Field3d<TF>& fld, const std::string& tend_name)
 
 template<typename TF>
 void Stats<TF>::calc_stats_2d(
-        const std::string& varname, const std::vector<TF>& fld, const TF offset)
+        const std::string& varname,
+        const std::vector<TF>& fld,
+        const TF offset)
 {
     auto& gd = grid.get_grid_data();
 
@@ -1872,17 +1847,32 @@ void Stats<TF>::calc_stats_2d(
     {
         for (auto& m : masks)
         {
-            calc_mean_2d(m.second.tseries.at(varname).data, fld.data(),
-                    gd.istart, gd.iend, gd.jstart, gd.jend, gd.icells, gd.itot, gd.jtot);
-            master.sum(&m.second.tseries.at(varname).data, 1);
-            m.second.tseries.at(varname).data += offset;
+            if (m.second.nmask_bot > 0)
+            {
+                calc_mean_2d(
+                        m.second.tseries.at(varname).data,
+                        fld.data(),
+                        mfield_bot.data(),
+                        m.second.nmask_bot,
+                        m.second.flag,
+                        gd.istart, gd.iend,
+                        gd.jstart, gd.jend,
+                        gd.icells, gd.itot, gd.jtot);
+
+                master.sum(&m.second.tseries.at(varname).data, 1);
+                m.second.tseries.at(varname).data += offset;
+            }
+            else
+                m.second.tseries.at(varname).data = netcdf_fp_fillvalue<TF>();
         }
     }
 }
 
 template<typename TF>
 void Stats<TF>::calc_stats_soil(
-        const std::string varname, const std::vector<TF>& fld, const TF offset)
+        const std::string varname,
+        const std::vector<TF>& fld,
+        const TF offset)
 {
     /*
        Calculate soil statistics, using the surface mask
@@ -1898,8 +1888,10 @@ void Stats<TF>::calc_stats_soil(
             if (m.second.nmask_bot > 0)
             {
                 calc_mean_projected_mask(
-                        m.second.soil_profs.at(varname).data.data(), fld.data(),
-                        mfield_bot.data(), m.second.nmask_bot,
+                        m.second.soil_profs.at(varname).data.data(),
+                        fld.data(),
+                        mfield_bot.data(),
+                        m.second.nmask_bot,
                         m.second.flag,
                         agd.istart, agd.iend,
                         agd.jstart, agd.jend,

@@ -1,8 +1,9 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2020 Chiel van Heerwaarden
- * Copyright (c) 2011-2020 Thijs Heus
- * Copyright (c) 2014-2020 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
+ * Copyright (c) 2021-2024 Steven van der Linden
  *
  * This file is part of MicroHH
  *
@@ -27,7 +28,7 @@
 #include "fast_math.h"
 #include "monin_obukhov.h"
 
-namespace diff_tke2
+namespace Diff_tke2_kernels
 {
     namespace most = Monin_obukhov;
     namespace fm = Fast_math;
@@ -52,13 +53,13 @@ namespace diff_tke2
                 const TF* const __restrict__ mlen0,
                 const TF cn, const TF cm)
         {
-            const int ij  = i + j*gd.jj;
-            const int ijk = i + j*gd.jj + k*gd.kk;
+            const int ij  = i + j*gd.jstride;
+            const int ijk = i + j*gd.jstride + k*gd.kstride;
 
             // Variables for the wall damping and length scales
             const TF n_mason = TF(2.);
     
-            if (!sw_surface_model)
+            if constexpr (!sw_surface_model)
                 asm("trap;");
             else
             {
@@ -67,19 +68,24 @@ namespace diff_tke2
                 if (level.distance_to_start() == 0)
                 {
                     if ( bgradbot[ij] > 0 ) // Only if stably stratified, adapt length scale
-                        mlen = cn * sqrt(sgstke[ijk]) / sqrt(bgradbot[ij]);
+                        mlen = cn * sqrt(sgstke[ijk] / bgradbot[ij]);
                 }
                 else
                 {
                     if ( N2[ijk] > 0 ) // Only if stably stratified, adapt length scale
-                        mlen = cn * sqrt(sgstke[ijk]) / sqrt(N2[ijk]);
+                        mlen = cn * sqrt(sgstke[ijk] / N2[ijk]);
                 }
     
-                TF fac  = min(mlen0[k], mlen);
+                TF fac = min(mlen0[k], mlen);
     
-                if (sw_mason) // Apply Mason's wall correction here
-                    fac = pow(TF(1.)/(TF(1.)/pow(fac, n_mason) + TF(1.)/
-                            (pow(Constants::kappa<TF>*(z[k]+z0m[ij]), n_mason))), TF(1.)/n_mason);
+                if constexpr (sw_mason) // Apply Mason's wall correction here
+                {
+                    if constexpr (n_mason == 2)
+                        fac = sqrt(TF(1.) / ( TF(1.)/fm::pow2(fac) + TF(1.)/(fm::pow2(Constants::kappa<TF>*(z[k]+z0m[ij]))) ) );
+                    else
+                        fac = pow(TF(1.) / (TF(1.)/pow(fac, TF(n_mason)) + TF(1.)/
+                                    (pow(Constants::kappa<TF>*(z[k]+z0m[ij]), TF(n_mason)))), TF(1.)/TF(n_mason));
+                }
     
                 // Calculate eddy diffusivity for momentum.
                 evisc[ijk] = cm * fac * sqrt(sgstke[ijk]);
@@ -109,13 +115,13 @@ namespace diff_tke2
                 const TF* __restrict__ mlen0,
                 const TF cn, const TF ch1, const TF ch2)
         {
-            const int ij  = i + j*gd.jj;
-            const int ijk = i + j*gd.jj + k*gd.kk;
+            const int ij  = i + j*gd.jstride;
+            const int ijk = i + j*gd.jstride + k*gd.kstride;
 
             // Variables for the wall damping and length scales
             const TF n_mason = TF(2.);
 
-            if (!sw_surface_model)
+            if constexpr (!sw_surface_model)
                 asm("trap;");
             else
             {
@@ -124,19 +130,24 @@ namespace diff_tke2
                 if (level.distance_to_start() == 0)
                 {
                     if ( bgradbot[ij] > 0 ) // Only if stably stratified, adapt length scale
-                        mlen = cn * sqrt(sgstke[ijk]) / sqrt(bgradbot[ij]);
+                        mlen = cn * sqrt(sgstke[ijk] / bgradbot[ij]);
                 }
                 else
                 {
                     if ( N2[ijk] > 0 ) // Only if stably stratified, adapt length scale
-                        mlen = cn * sqrt(sgstke[ijk]) / sqrt(N2[ijk]);
+                        mlen = cn * sqrt(sgstke[ijk] / N2[ijk]);
                 }
 
                 TF fac = min(mlen0[k], mlen);
 
-                if (sw_mason) // Apply Mason's wall correction here
-                    fac = pow(TF(1.)/(TF(1.)/pow(fac, n_mason) + TF(1.)/
-                                (pow(Constants::kappa<TF>*(z[k]+z0m[ij]), n_mason))), TF(1.)/n_mason);
+                if constexpr (sw_mason) // Apply Mason's wall correction here
+                {
+                    if constexpr (n_mason == 2)
+                        fac = sqrt(TF(1.) / ( TF(1.)/fm::pow2(fac) + TF(1.)/(fm::pow2(Constants::kappa<TF>*(z[k]+z0m[ij]))) ) );
+                    else
+                        fac = pow(TF(1.) / (TF(1.)/pow(fac, TF(n_mason)) + TF(1.)/
+                                    (pow(Constants::kappa<TF>*(z[k]+z0m[ij]), TF(n_mason)))), TF(1.)/TF(n_mason));
+                }
 
                 // Calculate eddy diffusivity for momentum.
                 evisch[ijk] = (ch1 + ch2 * fac / mlen0[k]) * evisc[ijk];
@@ -165,8 +176,8 @@ namespace diff_tke2
                 const TF* const __restrict__ mlen0,
                 const TF cn, const TF ce1, const TF ce2)
         {
-            const int ij  = i + j*gd.jj;
-            const int ijk = i + j*gd.jj + k*gd.kk;
+            const int ij  = i + j*gd.jstride;
+            const int ijk = i + j*gd.jstride + k*gd.kstride;
 
             const TF n_mason = TF(2.);
 
@@ -177,20 +188,24 @@ namespace diff_tke2
             if (level.distance_to_start() == 0)
             {
                 if (bgradbot[ij] > 0)
-                    mlen = cn * sqrt(a[ijk]) / sqrt(bgradbot[ij]);
+                    mlen = cn * sqrt(a[ijk] / bgradbot[ij]);
             }
             else
             {
                 if (N2[ijk] > 0)
-                    mlen = cn * sqrt(a[ijk]) / sqrt(N2[ijk]);
+                    mlen = cn * sqrt(a[ijk] / N2[ijk]);
             }
 
-            TF fac  = min(mlen0[k], mlen);
+            TF fac = min(mlen0[k], mlen);
 
-            // Apply Mason's wall correction here
-            if (sw_mason)
-                fac = pow(TF(1.)/(TF(1.)/pow(fac, n_mason) + TF(1.)/
-                        (pow(Constants::kappa<TF>*(z[k]+z0m[ij]), n_mason))), TF(1.)/n_mason);
+            if constexpr (sw_mason) // Apply Mason's wall correction here
+            {
+                if constexpr (n_mason == 2)
+                    fac = sqrt(TF(1.) / ( TF(1.)/fm::pow2(fac) + TF(1.)/(fm::pow2(Constants::kappa<TF>*(z[k]+z0m[ij]))) ) );
+                else
+                    fac = pow(TF(1.) / (TF(1.)/pow(fac, TF(n_mason)) + TF(1.)/
+                                (pow(Constants::kappa<TF>*(z[k]+z0m[ij]), TF(n_mason)))), TF(1.)/TF(n_mason));
+            }
 
             // Calculate dissipation of SGS TKE based on Deardorff (1980)
             at[ijk] -= (ce1 + ce2 * fac / mlen0[k]) * pow(a[ijk], TF(3./2.)) / fac;
@@ -215,8 +230,8 @@ namespace diff_tke2
                 const TF* const __restrict__ N2,
                 const TF* const __restrict__ bgradbot)
         {
-            const int ijk = i + j*gd.jj + k*gd.kk;
-            const int ij  = i + j*gd.jj;
+            const int ijk = i + j*gd.jstride + k*gd.kstride;
+            const int ij  = i + j*gd.jstride;
 
             // Calculate buoyancy destruction of SGS TKE based on Deardorff (1980)
             if (level.distance_to_start() == 0)
@@ -243,7 +258,7 @@ namespace diff_tke2
                 const TF* const __restrict__ evisc,
                 const TF* const __restrict__ strain2)
         {
-            const int ijk = i + j*gd.jj + k*gd.kk;
+            const int ijk = i + j*gd.jstride + k*gd.kstride;
 
             // Calculate shear production of SGS TKE based on Deardorff (1980)
             // NOTE: `strain2` is defined/calculated as:

@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -26,16 +26,19 @@
 class Master;
 class Input;
 class Netcdf_handle;
+#include "timedep.h"
 
 template<typename> class Grid;
 template<typename> class Stats;
+template<typename> class Timedep;
+
 template<typename> class Diff;
 template<typename> class Dump;
 template<typename> class Cross;
 template<typename> class Thermo;
 template<typename> class Field3d;
 
-enum class Microphys_type {Disabled, Warm_2mom, Nsw6};
+enum class Microphys_type {Disabled, Warm_2mom, Warm_2mom_cld, Nsw6};
 
 /**
  * Base class for the microphysics scheme. This class is abstract and only
@@ -56,6 +59,7 @@ class Microphys
         virtual void init() = 0;
         virtual void create(Input&, Netcdf_handle&, Stats<TF>&, Cross<TF>&, Dump<TF>&, Column<TF>&) = 0;
         virtual unsigned long get_time_limit(unsigned long, double) = 0;
+        virtual void update_time_dependent(Timeloop<TF>&) = 0; ///< Update the time dependent parameters.
 
         virtual void exec(Thermo<TF>&, const double, Stats<TF>&) = 0;
         virtual void exec_stats(Stats<TF>&, Thermo<TF>&, const double) = 0; ///< Calculate the statistics

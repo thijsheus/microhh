@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2020 Chiel van Heerwaarden
- * Copyright (c) 2011-2020 Thijs Heus
- * Copyright (c) 2014-2020 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -27,7 +27,7 @@
 #include "fast_math.h"
 #include "monin_obukhov.h"
 
-namespace diff_smag2
+namespace Diff_smag2_kernels
 {
     namespace most = Monin_obukhov;
     namespace fm = Fast_math;
@@ -51,12 +51,12 @@ namespace diff_smag2
         {
 //            const TF n_mason = TF(2);
 
-            const int jj = gd.jj;
-            const int kk = gd.kk;
+            const int jj = gd.jstride;
+            const int kk = gd.kstride;
             const int ij  = i + j*jj;
             const int ijk = i + j*jj + k*kk;
 
-            if (surface_model_enabled)
+            if constexpr (surface_model_enabled)
             {
                 TF RitPrratio;
 

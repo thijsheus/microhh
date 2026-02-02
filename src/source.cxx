@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -31,6 +31,7 @@
 #include "grid.h"
 #include "fields.h"
 #include "source.h"
+#include "source_kernels.h"
 #include "defines.h"
 #include "fast_math.h"
 #include "timedep.h"
@@ -40,39 +41,6 @@
 namespace
 {
     namespace fm = Fast_math;
-
-    template<typename TF>
-    std::vector<int> calc_shape(
-            const TF* restrict x, const TF x0, const TF sigma_x, const TF line_x, int istart, int iend)
-    {
-        std::vector<int> range(2);
-
-        int i = istart;
-        range[0] = iend;
-
-        for (; i<iend; ++i)
-        {
-            if ( x[i]-x0 + TF(4)*sigma_x > TF(0) )
-            {
-                range[0] = i;
-                break;
-            }
-        }
-
-        i = istart;
-        for (; i<iend; ++i)
-        {
-            range[1] = iend;
-
-            if ( x[i]-x0-line_x - TF(4)*sigma_x > TF(0) )
-            {
-                range[1] = i;
-                break;
-            }
-        }
-
-        return range;
-    }
 
     template<typename TF>
     std::vector<int> calc_shape_profile(
@@ -204,13 +172,29 @@ Source<TF>::Source(Master& master, Grid<TF>& grid, Fields<TF>& fields, Input& in
         source_x0 = input.get_list<TF>("source", "source_x0", "");
         source_y0 = input.get_list<TF>("source", "source_y0", "");
         source_z0 = input.get_list<TF>("source", "source_z0", "");
-        sigma_x   = input.get_list<TF>("source", "sigma_x"  , "");
-        sigma_y   = input.get_list<TF>("source", "sigma_y"  , "");
-        sigma_z   = input.get_list<TF>("source", "sigma_z"  , "");
-        strength  = input.get_list<TF>("source", "strength" , "");
-        line_x    = input.get_list<TF>("source", "line_x"   , "");
-        line_y    = input.get_list<TF>("source", "line_y"   , "");
-        line_z    = input.get_list<TF>("source", "line_z"   , "");
+        sigma_x   = input.get_list<TF>("source", "sigma_x",   "");
+        sigma_y   = input.get_list<TF>("source", "sigma_y",   "");
+        sigma_z   = input.get_list<TF>("source", "sigma_z",   "");
+        strength  = input.get_list<TF>("source", "strength",  "");
+        line_x    = input.get_list<TF>("source", "line_x",    "", std::vector<TF>());
+        line_y    = input.get_list<TF>("source", "line_y",    "", std::vector<TF>());
+        line_z    = input.get_list<TF>("source", "line_z",    "", std::vector<TF>());
+
+        auto check_and_default = [&](std::vector<TF>& vec)
+        {
+            if (vec.size() > 0 && vec.size() != source_x0.size())
+                throw std::runtime_error("Number of line input values doesn't match other source input values.");
+            else if (vec.size() == 0 && source_x0.size() > 0)
+            {
+                vec.resize(source_x0.size());
+                std::fill(vec.begin(), vec.end(), TF(0));
+            }
+        };
+
+        // The `line_` input options are allowed to be empty. Set to zero if size differs from other input options.
+        check_and_default(line_x);
+        check_and_default(line_y);
+        check_and_default(line_z);
 
         // Timedep source location
         swtimedep_location = input.get_item<bool>("source", "swtimedep_location", "", false);
@@ -545,7 +529,6 @@ TF Source<TF>::calc_norm(
 
     return sum;
 }
-
 
 #ifdef FLOAT_SINGLE
 template class Source<float>;

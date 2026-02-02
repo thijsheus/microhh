@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -164,6 +164,10 @@ void Grid<TF>::init()
     gd.iend = gd.imax + gd.igc;
     gd.jend = gd.jmax + gd.jgc;
     gd.kend = gd.kmax + gd.kgc;
+
+    gd.istride = 1;
+    gd.jstride = gd.icells;
+    gd.kstride = gd.ijcells;
 
     check_ghost_cells();
 

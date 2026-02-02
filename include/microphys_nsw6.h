@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -38,9 +38,11 @@
 class Master;
 class Input;
 class Netcdf_handle;
+#include "timedep.h"
 
 template<typename> class Grid;
 template<typename> class Stats;
+template<typename> class Timedep;
 template<typename> class Dump;
 template<typename> class Diff;
 template<typename> class Cross;
@@ -58,6 +60,7 @@ class Microphys_nsw6 : public Microphys<TF>
         void init();
         void create(Input&, Netcdf_handle&, Stats<TF>&, Cross<TF>&, Dump<TF>&, Column<TF>&);
         void exec(Thermo<TF>&, const double, Stats<TF>&);
+        void update_time_dependent(Timeloop<TF>&) {}; ///< Update the time dependent parameters.
 
         void exec_stats(Stats<TF>&, Thermo<TF>&, const double);
         void exec_column(Column<TF>&);

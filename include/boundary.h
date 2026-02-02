@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -160,10 +160,11 @@ class Boundary
         std::map<std::string, Timedep<TF>*> tdep_outflow;
 
         // Time varying spatial sbot input:
+
         bool swtimedep_sbot_2d;
-        unsigned int sbot_2d_loadtime;
         std::map<std::string, std::vector<TF>> sbot_2d_prev;
         std::map<std::string, std::vector<TF>> sbot_2d_next;
+        unsigned long iloadtime_sbot_2d;
         unsigned long itime_sbot_2d_prev;
         unsigned long itime_sbot_2d_next;
 

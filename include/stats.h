@@ -1,8 +1,8 @@
 /*
  * MicroHH
- * Copyright (c) 2011-2023 Chiel van Heerwaarden
- * Copyright (c) 2011-2023 Thijs Heus
- * Copyright (c) 2014-2023 Bart van Stratum
+ * Copyright (c) 2011-2024 Chiel van Heerwaarden
+ * Copyright (c) 2011-2024 Thijs Heus
+ * Copyright (c) 2014-2024 Bart van Stratum
  *
  * This file is part of MicroHH
  *
@@ -99,7 +99,7 @@ class Stats
         Stats(Master&, Grid<TF>&, Soil_grid<TF>&, Background<TF>&, Fields<TF>&, Advec<TF>&, Diff<TF>&, Input&);
         ~Stats();
 
-        void init(double);
+        void init();
         void create(const Timeloop<TF>&, std::string);
 
         unsigned long get_time_limit(unsigned long);
