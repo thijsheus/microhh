@@ -27,11 +27,15 @@ import glob
 import struct
 import time as tm
 import numpy as np
-from multiprocessing import Pool
+from multiprocessing import Pool, set_start_method, freeze_support
+
+if __name__ == '__main__':
+    set_start_method('fork')
+    freeze_support()
 
 def convert_to_nc(variables):
     half_level_vars = ['w', 'lflx', 'sflx']
-    
+
     for variable in variables:
         filename = "{0}.nc".format(variable)
         dim = {
