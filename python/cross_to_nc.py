@@ -26,11 +26,12 @@ import argparse
 import collections
 import glob
 import numpy as np
-from multiprocessing import Pool, set_start_method
+from multiprocessing import Pool, set_start_method, freeze_support
 import platform
 
-if platform.system() == 'Darwin':
+if __name__ == '__main__':
     set_start_method('fork')
+    freeze_support()
 
 def convert_to_nc(variables):
     # Loop over the different variables and crosssections
@@ -88,7 +89,7 @@ def convert_to_nc(variables):
                     dim['zh'] = dim.pop('z')
                 ncfile = mht.Create_ncfile(
                     grid, filename, variable, dim, precision, compression)
-                
+
                 for key, val in dim.items():
                     if key == 'time':
                         continue
@@ -135,7 +136,8 @@ def convert_to_nc(variables):
                 print(ex)
                 print("Failed to create %s" % filename)
 
-
+if __name__ == '__main__':
+    freeze_support()
 
 # Parse command line and namelist options
 cross_modes = ['xy', 'xz', 'yz']
