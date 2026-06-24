@@ -200,7 +200,7 @@ class Grid
         #endif
 
         bool swtimedep;
-        std::map<std::string, Timedep<TF>*> tdep_grid;
+        std::map<std::string, Timedep<TF>*> tdep_latlon;
 
 };
 #endif

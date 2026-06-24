@@ -225,8 +225,6 @@ void Grid<TF>::create_stats(Stats<TF>& stats)
             stats.add_time_series("lat", "Latitude", "degrees", group_name);
         if (gd.lon>-1000.)
             stats.add_time_series("lon", "Longitude", "degrees", group_name);
-        stats.add_time_series("utrans", "Translation velocity in the East-West direction", "m s-1", group_name);
-        stats.add_time_series("vtrans", "Translation velocity in the North-South direction", "m s-1", group_name);
     }
 }
 
@@ -238,8 +236,6 @@ void Grid<TF>::exec_stats(Stats<TF>& stats)
         stats.set_time_series("lat", gd.lat);
     if (gd.lon>-1000.)
         stats.set_time_series("lon", gd.lon);
-    stats.set_time_series("utrans", gd.utrans);
-    stats.set_time_series("vtrans", gd.vtrans);
 }
 /**
  * This function calculates the scalars and arrays that contain the information
@@ -398,15 +394,10 @@ void Grid<TF>::load(Input& inputin, Netcdf_handle& input_nc)
 
     std::string timedep_dim = "time_latlon";
     swtimedep = inputin.get_item<bool>("grid", "swtimedep", "", false);
-    
-    if (inputin.get_item<bool>("grid", "swtimedep", "", false))
-    {
-        std::vector<std::string> tdepvars = inputin.get_list<std::string>("grid", "timedeplist", "", std::vector<std::string>());
-        for (auto& it : tdepvars)
-            tdep_grid.emplace(it, new Timedep<TF>(master, (*this), it, true));
-        for (auto& it : tdep_grid)
-            it.second->create_timedep(input_nc, timedep_dim);
-    }
+    tdep_latlon.emplace("lat", new Timedep<TF>(master, (*this), "lat", swtimedep));
+    tdep_latlon.at("lat")->create_timedep(input_nc, timedep_dim);
+    tdep_latlon.emplace("lon", new Timedep<TF>(master, (*this), "lon", swtimedep));
+    tdep_latlon.at("lon")->create_timedep(input_nc, timedep_dim);
 
 
 }
@@ -414,18 +405,8 @@ void Grid<TF>::load(Input& inputin, Netcdf_handle& input_nc)
 template <typename TF>
 void Grid<TF>::update_time_dependent(Timeloop<TF>& timeloop)
 {
-    
-    for (auto& it : tdep_grid)
-    {
-        if (it.first == "lat")
-            it.second->update_time_dependent(gd.lat, timeloop);
-        else if (it.first == "lon")
-            it.second->update_time_dependent(gd.lon, timeloop);
-        else if (it.first == "utrans")
-            it.second->update_time_dependent(gd.utrans, timeloop);
-        else if (it.first == "vtrans")
-            it.second->update_time_dependent(gd.vtrans, timeloop);
-    }       
+        tdep_latlon.at("lat")->update_time_dependent(gd.lat, timeloop);
+        tdep_latlon.at("lon")->update_time_dependent(gd.lon, timeloop);
 }
 
 
