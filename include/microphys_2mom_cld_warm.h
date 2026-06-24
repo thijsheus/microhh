@@ -164,9 +164,6 @@ class Microphys_2mom_cld_warm : public Microphys<TF>
         void exec_dump(Dump<TF>&, unsigned long) {};
         void exec_cross(Cross<TF>&, unsigned long);
 
-        void get_mask(Stats<TF>&, std::string);
-        bool has_mask(std::string);
-
         void get_surface_rain_rate(std::vector<TF>&);
         void update_time_dependent(Timeloop<TF>&); ///< Update the time dependent parameters.
 
