@@ -38,7 +38,7 @@ template<typename> class Cross;
 template<typename> class Thermo;
 template<typename> class Field3d;
 
-enum class Microphys_type {Disabled, Warm_2mom, Warm_2mom_cld, Nsw6};
+enum class Microphys_type {Disabled, Warm_2mom, Nsw6};
 
 /**
  * Base class for the microphysics scheme. This class is abstract and only

@@ -31,7 +31,6 @@
 #include "microphys.h"
 #include "microphys_disabled.h"
 #include "microphys_2mom_warm.h"
-#include "microphys_2mom_cld_warm.h"
 #include "microphys_nsw6.h"
 
 template<typename TF>
@@ -60,8 +59,6 @@ std::shared_ptr<Microphys<TF>> Microphys<TF>::factory(Master& masterin, Grid<TF>
         return std::make_shared<Microphys_disabled<TF>>(masterin, gridin, fieldsin, inputin);
     else if (swmicro == "2mom_warm")
         return std::make_shared<Microphys_2mom_warm<TF>>(masterin, gridin, fieldsin, inputin);
-    else if (swmicro == "2mom_cld_warm")
-        return std::make_shared<Microphys_2mom_cld_warm<TF>>(masterin, gridin, fieldsin, inputin);
     else if (swmicro == "nsw6")
         return std::make_shared<Microphys_nsw6<TF>>(masterin, gridin, fieldsin, inputin);
     else
