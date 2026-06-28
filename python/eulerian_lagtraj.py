@@ -104,7 +104,7 @@ def create_forcing(dict):
 def create_microhhforcing(dict):
     basename = dict['folder']+dict['domain']
     netcdf_path = str(root_data_path)+'/forcings/'+dict['domain']+".kpt.nc"
-    evergreen=0.7;
+    
     all_data = xr.open_dataset(netcdf_path,decode_times=False)
     time = all_data['time'].values[0:];
     select_arr=(time>=time[0])
@@ -123,7 +123,10 @@ def create_microhhforcing(dict):
     pres_un=all_data['pres'].values[select_arr,:];       pres_un=np.flip(pres_un, axis=1);
     T_un=all_data['t'].values[select_arr,:];                   T_un=np.flip(T_un, axis=1);
     pres0=all_data['ps'].values[select_arr];
-    sst=all_data['t_skin'].values[select_arr];
+    if dict['surfaceType']=='ocean':
+        sst=all_data['open_sst'].values[select_arr];
+    else:
+        sst=all_data['t_skin'].values[select_arr];
     qs=all_data['q_skin'].values[select_arr];
     z0m=all_data['mom_rough'].values[select_arr];
     z0h=all_data['heat_rough'].values[select_arr];
@@ -147,12 +150,16 @@ def create_microhhforcing(dict):
     high_veg_cover = all_data['high_veg_cover'].values[select_arr];
 
     # set the height
+    print(dict['fine_grid'])
     if dict['fine_grid']:
         z_new=np.zeros(300)
         dz=15
         z_new[0]=15;
         for i in range(1,z_new.size): 
             z_new[i]=z_new[i-1]+dz
+            if z_new[i]>4000:
+                dz=dz+int(round(0.2*dz,0));
+        print(z_new[299])
         z_end_ind=np.nonzero((z_new>dict['z_top']))[0][0]    
         z=z_new[0:z_end_ind+1]
         kmax=z.size
@@ -169,6 +176,7 @@ def create_microhhforcing(dict):
                 dz=40;
             elif z_new[i]>5000:
                 dz=dz+int(round(0.1*dz,0));
+        print(z_new[299])
         z_end_ind=np.nonzero((z_new>dict['z_top']))[0][0]
         z=z_new[0:z_end_ind+1]
         kmax=z.size
@@ -214,7 +222,8 @@ def create_microhhforcing(dict):
     cp  = 1005.
     Lv  = 2.5e6
     Rd  = 287.
-    tau = 21600;
+    tau = int(dict['nudge_time']*3600);
+    print(tau)
 
     ######################## Radiation Calculation and NC input ##################################
 
@@ -374,7 +383,9 @@ def create_microhhforcing(dict):
 
     ug = ugeo; vg = vgeo;
     p_sbot = pres[:,0];
-    nudge_factor[:,:]=1./tau
+    nudge_height = dict['nudge_height']
+    z_nudge_ind=np.nonzero((z>nudge_height))[0][0]
+    nudge_factor[:,z_nudge_ind:-1]=1./tau
 
     for n in range(0,time.size):
         sat_r = mpcalc.saturation_mixing_ratio(p_sbot[n] * units.pascal , sst[n]* units.kelvin)
@@ -596,21 +607,24 @@ def create_microhhforcing(dict):
         ini['boundary']['sbcbot'] = 'dirichlet'
         ini['land_surface']['swhomogeneous'] = True
         ini['boundary']['swconstantz0'] = True
+        ini['time']['datetime_utc']=str(dict['start_date'].date())+' 00:00:00'
         
         if dict['domain']=='SEUS':
+            evergreen=1;
             gD_hv=evergreen*0.0003+(1-evergreen)*0.0013;
             #rs_highveg=evergreen*500+(1-evergreen)*240;
             lai=high_veg_cover[0]*high_veg_lai[0]+low_veg_cover[0]*low_veg_lai[0]
-            ini['land_surface']['lai'] = 5.5
+            print('LAI is:',lai)
+            ini['land_surface']['lai'] = lai
             ini['land_surface']['gD'] = high_veg_cover[0]*gD_hv
             ini['land_surface']['lambda_stable'] = high_veg_cover[0]*20+low_veg_cover[0]*10
             ini['land_surface']['lambda_unstable'] = high_veg_cover[0]*15+low_veg_cover[0]*10
             ini['land_surface']['c_veg'] = 0.99
             ini['radiation']['emis_sfc'] = 0.97
             ini['land_surface']['rs_veg_min'] = 180
-        elif dict['domain']=='SGP':
-            #lai=high_veg_cover[0]*high_veg_lai[0]+low_veg_cover[0]*low_veg_lai[0]
-            ini['land_surface']['lai'] = 3
+        elif dict['domain']=='SGP' or dict['domain']=='SGP_eclipse':
+            lai=high_veg_cover[0]*high_veg_lai[0]+low_veg_cover[0]*low_veg_lai[0]
+            ini['land_surface']['lai'] = lai
             ini['land_surface']['gD'] = 0
             ini['land_surface']['lambda_stable'] = 10
             ini['land_surface']['lambda_unstable'] = 10
@@ -628,6 +642,7 @@ def create_microhhforcing(dict):
             ini['land_surface']['rs_veg_min'] = 180
         elif dict['domain']=='IND':
             ini['land_surface']['gD'] = 0
+            ini['land_surface']['lai'] = high_veg_cover[0]*high_veg_lai[0]+low_veg_cover[0]*low_veg_lai[0]
             ini['land_surface']['lambda_stable'] = 10
             ini['land_surface']['lambda_unstable'] = 10
             ini['radiation']['emis_sfc'] = 0.97
@@ -686,7 +701,7 @@ def generate_forcing(cliargs):
         dict['campaign'] = dict['domain']
     if 'conversion_type' not in dict.keys():
         dict['conversion_type'] = 'kpt'
-    if dict['surfaceType']=='ocean':
+    if dict['trajectory_type']=='lagrangian':
         dict['gradient_method']='regression'
         if "averaging_width" not in dict.keys():
             dict['averaging_width']=1.0
@@ -705,7 +720,7 @@ def generate_forcing(cliargs):
     if 'lon_max' not in dict.keys():
         dict['lon_max'] = np.ceil(dict['lon_origin']+half_size)
     
-    dict['datetime_origin'] = datetime.strptime(dict['datetime_origin'], '%Y-%m-%dT%H:%M')
+    
 
     if 'backward_duration' in dict.keys():
         dict['backward_duration'] = parseTimeDelta(dict['backward_duration'])
@@ -717,8 +732,10 @@ def generate_forcing(cliargs):
         dict['forward_duration'] = datetime.timedelta(hours=0)
 
     if 'start_date' in dict.keys():
+        dict['datetime_origin'] = datetime.strptime(dict['start_date'], '%Y-%m-%dT%H:%M')
         dict['start_date'] = datetime.strptime(dict['start_date'], '%Y-%m-%dT%H:%M')
     else:
+        dict['datetime_origin'] = datetime.strptime(dict['datetime_origin'], '%Y-%m-%dT%H:%M')
         dict['start_date'] = dict['datetime_origin'] - dict['backward_duration']
     
     if 'end_date' in dict.keys():
@@ -728,13 +745,25 @@ def generate_forcing(cliargs):
     
     if 'fine_grid' not in cliargs.keys():
         dict['fine_grid'] = False
+    elif dict['fine_grid']=='True':
+        dict['fine_grid'] = True
     else:
-        dict['fine_grid'] = cliargs['fine_grid']
+        dict['fine_grid'] = False
     
     if 'z_top' in cliargs.keys():
         dict['z_top'] = float(cliargs['z_top'])
     else:
         dict['z_top'] = 12000.
+
+    if 'nudge_time' in cliargs.keys():
+        dict['nudge_time'] = float(cliargs['nudge_time'])
+    else:
+        dict['nudge_time'] = 3
+
+    if 'nudge_height' in cliargs.keys():
+        dict['nudge_height'] = float(cliargs['nudge_height'])
+    else:
+        dict['nudge_height'] = 4000.
 
     create_domain(dict)
     download_domain(dict)
@@ -758,6 +787,8 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--end_date', help='end date')
     parser.add_argument('-fg', '--fine_grid', help='use fine grid')
     parser.add_argument('-zt', '--z_top', help='domain top')
+    parser.add_argument('-nh', '--nudge_height', help='Start height for nudging')
+    parser.add_argument('-nt', '--nudge_time', help='Start height for nudging')
 
     cliargs = vars(parser.parse_args())
     generate_forcing(cliargs)
